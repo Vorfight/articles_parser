@@ -1,0 +1,112 @@
+# articles_parser /search/sciencedirect.py
+from tqdm import tqdm
+import time
+from urllib.parse import quote_plus
+from ..config import KEY_TERMS, ELSEVIER_API_KEY
+from ..utils import safe_request_json, norm_doi
+
+MAX_RETRIES = 5
+RETRY_BASE_DELAY = 5  # сек
+
+def _is_open_access(entry: dict) -> bool:
+    """
+    ScienceDirect search returns 'openaccess' in entry for OA items (string 'true'/'false' or bool).
+    We'll accept truthy values. If field absent -> treat as non-OA.
+    """
+    val = entry.get("openaccess")
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        return val.strip().lower() in {"true", "1", "yes"}
+    return False
+
+def _safe_request_with_retry(url, params):
+    """Повторяет запрос с увеличивающейся задержкой, если API вернул ошибку"""
+    delay = RETRY_BASE_DELAY
+    for attempt in range(MAX_RETRIES):
+        data = safe_request_json(url, params=params) # safe_request_json вернёт None при любой ошибке
+        if data is None:
+            time.sleep(delay)
+        else:
+            return data
+        delay *= 2
+
+    return None
+
+def search_sciencedirect(max_records=200, progress_cb=None):
+    """
+    ScienceDirect Search API:
+      - Фильтрация Open Access
+      - PDF URL строится через Content API (OA статьи)
+    """
+    results = {}
+    if not ELSEVIER_API_KEY:
+        return results
+
+    base = "https://api.elsevier.com/content/search/sciencedirect"
+    terms_or = " OR ".join([f"\"{t}\"" for t in KEY_TERMS])
+    query = terms_or
+
+    start = 0
+    count = 25
+    collected = 0
+
+    pbar = tqdm(total=max_records, desc="ScienceDirect search", unit="rec")
+    while collected < max_records:
+        params = {
+            "query": query,
+            "count": count,
+            "start": start,
+            "apiKey": ELSEVIER_API_KEY,
+            'httpAccept': 'application/json',
+        }
+
+
+        data = _safe_request_with_retry(base, params=params)
+        if not data:
+            break
+
+        sr = data.get("search-results", {})
+        items = sr.get("entry") or []
+        if not items:
+            break
+
+        added_this_page = 0
+        for it in items:
+            if not _is_open_access(it):
+                continue
+
+            doi = norm_doi(it.get("prism:doi"))
+            if not doi or doi in results:
+                continue
+
+            title = it.get("dc:title") or ""
+            abstract = it.get("dc:description") or ""
+
+            pdf_url = f"https://api.elsevier.com/content/article/doi/{quote_plus(doi)}?httpAccept=application/pdf&apiKey={ELSEVIER_API_KEY}"
+            xml_url = f"https://api.elsevier.com/content/article/doi/{quote_plus(doi)}?httpAccept=application/xml&apiKey={ELSEVIER_API_KEY}"
+
+
+            results[doi] = {
+                "source": "sciencedirect",
+                "title": title,
+                "abstract": abstract,
+                "pdf_url": pdf_url,
+                "xml_url": xml_url,
+                "raw": it,
+            }
+
+            collected += 1
+            added_this_page += 1
+            pbar.update(1)
+            if progress_cb:
+                progress_cb(1)
+            if collected >= max_records:
+                break
+
+        if added_this_page == 0 or len(items) < count:
+            break
+
+        start += count
+    pbar.close()
+    return results

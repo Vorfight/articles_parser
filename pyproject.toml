@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "articles_parser"
+version = "0.1.0"
+description = "Search, download, and filter papers on gamma radiolysis with unit-aware parsing of dose constants and G-values."
+readme = "README.md"
+authors = [{ name = "Dmitry Nikiforov" }]
+requires-python = ">=3.9"
+dependencies = [
+  "requests>=2.31",
+  "tqdm>=4.66",
+  "pdfminer.six>=20221105",
+  "beautifulsoup4>=4.12",
+  "lxml>=4.9",
+  "pandas>=2.0"
+]
+
+[project.optional-dependencies]
+camelot = ["camelot-py[cv]>=0.11"]
+tabula = ["tabula-py>=2.9"]
+
+[project.scripts]
+gamma-radiolysis = "articles_parser.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["articles_parser*"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-q"
+testpaths = ["tests"]
