@@ -1,7 +1,7 @@
 from pathlib import Path
 from bs4 import BeautifulSoup
 from pdfminer.high_level import extract_text as pdf_extract_text
-from .utils import normalize_spaces
+from utils import normalize_spaces
 
 # опциональные зависимости для таблиц
 HAS_CAMELOT, HAS_TABULA = False, False

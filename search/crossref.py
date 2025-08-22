@@ -2,8 +2,8 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 from urllib.parse import quote_plus
 
-from ..config import KEY_TERMS, UNPAYWALL_EMAIL, ELSEVIER_API_KEY
-from ..utils import safe_request_json, norm_doi
+from config import KEY_TERMS, UNPAYWALL_EMAIL, ELSEVIER_API_KEY
+from utils import safe_request_json, norm_doi
 
 def search_crossref(max_records=200):
     base = "https://api.crossref.org/works"

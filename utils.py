@@ -1,6 +1,6 @@
 import re, time, requests
 from pathlib import Path
-from .config import (DATA_DIR, PDF_DIR, XML_DIR, TEXT_DIR, REQUESTS_TIMEOUT,
+from config import (DATA_DIR, PDF_DIR, XML_DIR, TEXT_DIR, REQUESTS_TIMEOUT,
                      RATE_LIMIT_SLEEP)
 
 _SPECIAL_SPACES = dict.fromkeys([

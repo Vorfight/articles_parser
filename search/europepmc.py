@@ -1,6 +1,6 @@
 from tqdm import tqdm
-from ..config import KEY_TERMS
-from ..utils import safe_request_json, norm_doi
+from config import KEY_TERMS
+from utils import safe_request_json, norm_doi
 
 def search_europe_pmc(max_records=200):
     base = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"

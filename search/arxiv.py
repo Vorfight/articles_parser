@@ -2,8 +2,8 @@ import math
 from xml.etree import ElementTree as ET
 from urllib.parse import urlencode
 from tqdm import tqdm
-from ..config import KEY_TERMS
-from ..utils import safe_get, norm_doi
+from config import KEY_TERMS
+from utils import safe_get, norm_doi
 
 NS = {
     "atom": "http://www.w3.org/2005/Atom",

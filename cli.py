@@ -1,6 +1,6 @@
 import sys
 import argparse
-from .pipeline import run_pipeline
+from pipeline import run_pipeline
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Gamma radiolysis DB builder")

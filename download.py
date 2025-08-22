@@ -1,8 +1,8 @@
 from pathlib import Path
 from urllib.parse import quote_plus
-from .config import (UNPAYWALL_EMAIL, LOG_PDF_DOI, LOG_XML_DOI, LOG_DOI_NOT_DOWNL)
-from .utils import safe_get, is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
-from .utils import safe_request_json
+from config import (UNPAYWALL_EMAIL, LOG_PDF_DOI, LOG_XML_DOI, LOG_DOI_NOT_DOWNL)
+from utils import safe_get, is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
+from utils import safe_request_json
 from scidownl import scihub_download
 
 def append_line(path: Path, doi: str):

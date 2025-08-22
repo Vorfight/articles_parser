@@ -2,7 +2,7 @@
 import csv
 import os
 import pandas as pd
-from .config import LOG_INVENTORY
+from config import LOG_INVENTORY
 
 COLUMNS = [
     "doi", "title", "source",

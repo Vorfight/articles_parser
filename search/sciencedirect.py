@@ -2,8 +2,8 @@
 from tqdm import tqdm
 import time
 from urllib.parse import quote_plus
-from ..config import KEY_TERMS, ELSEVIER_API_KEY
-from ..utils import safe_request_json, norm_doi
+from config import KEY_TERMS, ELSEVIER_API_KEY
+from utils import safe_request_json, norm_doi
 
 MAX_RETRIES = 5
 RETRY_BASE_DELAY = 5  # сек

@@ -1,16 +1,16 @@
 from pathlib import Path
 from tqdm import tqdm
 
-from .config import (KEY_TERMS, GAMMA_HINTS, PDF_DIR, XML_DIR, TEXT_DIR)
-from .utils import ensure_dirs, norm_doi, doi_to_fname, mentions_gamma, normalize_spaces
-from .search import (
+from config import (KEY_TERMS, GAMMA_HINTS, PDF_DIR, XML_DIR, TEXT_DIR)
+from utils import ensure_dirs, norm_doi, doi_to_fname, mentions_gamma, normalize_spaces
+from search import (
     search_openalex, search_europe_pmc,
     search_arxiv, search_sciencedirect, search_crossref,
 )
-from .download import try_download_pdf_with_validation, try_download_xml
-from .extract import extract_text_from_pdf, extract_text_from_xml, extract_tables_text
-from .inventory import load_seen_inventory, ensure_inventory_file, append_inventory_row
-from .patterns import DOSE_CONST_NEAR, G_VALUE_ANY
+from download import try_download_pdf_with_validation, try_download_xml
+from extract import extract_text_from_pdf, extract_text_from_xml, extract_tables_text
+from inventory import load_seen_inventory, ensure_inventory_file, append_inventory_row
+from patterns import DOSE_CONST_NEAR, G_VALUE_ANY
 
 def _merge_sources(*dicts) -> dict[str, dict]:
     db: dict[str, dict] = {}

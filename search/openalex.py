@@ -1,7 +1,7 @@
 from tqdm import tqdm
 from bs4 import BeautifulSoup
-from ..config import KEY_TERMS
-from ..utils import safe_request_json, norm_doi
+from config import KEY_TERMS
+from utils import safe_request_json, norm_doi
 
 def _restore_openalex_abstract(inv_idx: dict | None) -> str:
     if not inv_idx:
