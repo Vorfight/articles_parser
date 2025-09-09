@@ -10,7 +10,7 @@ from search import (
 from download import try_download_pdf_with_validation, try_download_xml
 from extract import extract_text_from_pdf, extract_text_from_xml, extract_tables_text
 from inventory import load_seen_inventory, ensure_inventory_file, append_inventory_row
-from patterns import DOSE_CONST_NEAR, G_VALUE_ANY
+from patterns import DOSE_UNITS_RE, G_UNITS_RE
 
 def _merge_sources(*dicts) -> dict[str, dict]:
     db: dict[str, dict] = {}
@@ -91,9 +91,9 @@ def run_pipeline(max_per_source=200):
                 gamma_in_text = mentions_gamma(full_text, GAMMA_HINTS)
             gamma_flag = gamma_in_ta or gamma_in_text
             if gamma_flag:
-                if DOSE_CONST_NEAR.search(full_text):
+                if DOSE_UNITS_RE.search(full_text):
                     dose_const_found = True
-                if G_VALUE_ANY.search(full_text):
+                if G_UNITS_RE.search(full_text):
                     g_value_found = True
             (TEXT_DIR / f"{doi_to_fname(rec_id)}.txt").write_text(full_text, encoding="utf-8", errors="ignore")
 
