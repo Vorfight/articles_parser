@@ -3,7 +3,7 @@ from urllib.parse import quote_plus
 from config import (UNPAYWALL_EMAIL, LOG_PDF_DOI, LOG_XML_DOI, LOG_DOI_NOT_DOWNL)
 from utils import safe_get, is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
 from utils import safe_request_json
-from scidownl import scihub_download
+from libgen_api_enhanced import LibgenSearch
 
 def append_line(path: Path, doi: str):
     with path.open("a", encoding="utf-8") as f:
@@ -41,15 +41,22 @@ def unpaywall_lookup(doi: str) -> str | None:
             return pdf
     return None
 
-def download_via_scihub_stub(doi: str, pdf_path: Path) -> bool:
+def download_via_libgen_stub(doi: str, pdf_path: Path) -> bool:
     try:
-        scihub_download(doi, paper_type='doi', out=pdf_path)
-        return True
+        searcher = LibgenSearch()
+        results = searcher.search_default(doi)
+        if not results:
+            return False
+        book = results[0]
+        book.resolve_direct_download_link()
+        if not book.resolved_download_link:
+            return False
+        return download_file(book.resolved_download_link, pdf_path)
     except Exception:
         return False
 
 def try_download_pdf_with_validation(doi: str, primary_url: str | None) -> bool:
-    """Каскад: primary_url -> Unpaywall -> Sci-Hub(stub). Проверяем %PDF- после каждой попытки."""
+    """Каскад: primary_url -> Unpaywall -> LibGen(stub). Проверяем %PDF- после каждой попытки."""
     pdf_path = Path("data/pdfs") / f"{doi_to_fname(doi)}.pdf"
 
     # 1) прямой URL
@@ -67,8 +74,8 @@ def try_download_pdf_with_validation(doi: str, primary_url: str | None) -> bool:
             return True
         delete_if_exists(pdf_path)
 
-    # 3) Sci-Hub
-    if download_via_scihub_stub(doi, pdf_path) and is_valid_pdf(pdf_path):
+    # 3) LibGen
+    if download_via_libgen_stub(doi, pdf_path) and is_valid_pdf(pdf_path):
         append_line(LOG_PDF_DOI, doi)
         return True
     delete_if_exists(pdf_path)
