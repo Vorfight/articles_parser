@@ -1,6 +1,6 @@
 # Articles Parser
 
-Проект Articles Parser предназначен для автоматизации процесса сбора и обработки научных публикаций. Он позволяет автоматически находить статьи в различных источниках, фильтровать их по заданным критериям, скачивать полные тексты, извлекать содержимое и сохранять результаты для дальнейшего анализа.
+Проект Articles Parser предназначен для автоматизации процесса сбора и обработки научных публикаций. Он позволяет автоматически находить статьи в различных источниках, фильтровать их по заданным пользователем критериям, скачивать полные тексты, извлекать содержимое и сохранять результаты для дальнейшего анализа. Парсер универсален и может собирать данные о любых химических или физических свойствах.
 
 ## Этапы работы
 
@@ -30,5 +30,31 @@ pip install -r requirements.txt
 3. Запуск парсера:
 
 ```bash
-python cli.py --max-per-source <number_of_articles>
+python cli.py --keywords water viscosity \
+    --abstract-filter --abstract-patterns temperature \
+    --property-filter names --property-names viscosity "dynamic viscosity" \
+    --oa-only --max-per-source 50 --output-dir ./output
 ```
+
+Параметры можно комбинировать в зависимости от задачи. Скрипт также можно
+использовать как библиотеку:
+
+```python
+from articles_parser import run_pipeline
+
+run_pipeline(
+    keywords=["water", "viscosity"],
+    abstract_filter=True,
+    abstract_patterns=["temperature"],
+    property_names_units_filter="names",
+    property_names=["viscosity", "dynamic viscosity"],
+    oa_only=True,
+    max_per_source=50,
+    output_directory="./output",
+)
+```
+
+
+## Examples
+
+See [`examples/test.ipynb`](examples/test.ipynb) for a sample notebook demonstrating both Python API and CLI usage.
