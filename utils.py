@@ -1,7 +1,6 @@
 import re, time, requests
 from pathlib import Path
-from config import (DATA_DIR, PDF_DIR, XML_DIR, TEXT_DIR, REQUESTS_TIMEOUT,
-                     RATE_LIMIT_SLEEP)
+import config
 
 _SPECIAL_SPACES = dict.fromkeys([
     0x00A0,  # NO-BREAK SPACE
@@ -27,7 +26,7 @@ def normalize_spaces(text: str) -> str:
     return t
 
 def ensure_dirs():
-    for d in [DATA_DIR, PDF_DIR, XML_DIR, TEXT_DIR]:
+    for d in [config.DATA_DIR, config.PDF_DIR, config.XML_DIR, config.TEXT_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
 def norm_doi(raw: str | None) -> str | None:
@@ -46,9 +45,9 @@ def doi_to_fname(doi: str) -> str:
                  .replace(' ', '_'))
 
 def safe_request_json(url, params=None, headers=None):
-    time.sleep(RATE_LIMIT_SLEEP)
+    time.sleep(config.RATE_LIMIT_SLEEP)
     try:
-        r = requests.get(url, params=params, headers=headers, timeout=REQUESTS_TIMEOUT)
+        r = requests.get(url, params=params, headers=headers, timeout=config.REQUESTS_TIMEOUT)
         r.raise_for_status()
         return r.json()
     except Exception as e:
@@ -56,9 +55,9 @@ def safe_request_json(url, params=None, headers=None):
         return None
 
 def safe_get(url, stream=False):
-    time.sleep(RATE_LIMIT_SLEEP)
+    time.sleep(config.RATE_LIMIT_SLEEP)
     try:
-        r = requests.get(url, timeout=REQUESTS_TIMEOUT, stream=stream, allow_redirects=True)
+        r = requests.get(url, timeout=config.REQUESTS_TIMEOUT, stream=stream, allow_redirects=True)
         r.raise_for_status()
         return r
     except Exception:

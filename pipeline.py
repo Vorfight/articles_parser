@@ -4,13 +4,7 @@ from pathlib import Path
 import re
 from tqdm import tqdm
 
-from config import (
-    set_keywords,
-    set_output_dir,
-    PDF_DIR,
-    XML_DIR,
-    TEXT_DIR,
-)
+import config
 from utils import ensure_dirs, norm_doi, doi_to_fname, normalize_spaces
 from search import (
     search_openalex,
@@ -47,25 +41,29 @@ def run_pipeline(
     oa_only: bool = False,
     max_per_source: int | None = None,
     output_directory: str | Path = "data",
+    sources: list[str] | None = None,
 ):
     """Execute full pipeline of search, download and filtering."""
 
     # Настройка конфигурации
-    set_keywords(keywords)
-    set_output_dir(output_directory)
+    config.set_keywords(keywords)
+    config.set_output_dir(output_directory)
     ensure_dirs()
     ensure_inventory_file()
 
     max_records = max_per_source if max_per_source is not None else 1_000_000
 
     # --- поиск по источникам ---
-    openalex = search_openalex(max_records)
-    europepmc = search_europe_pmc(max_records)
-    crossref = search_crossref(max_records)
-    arxiv = search_arxiv(max_records)
-    scidir = search_sciencedirect(max_records)
-
-    db = _merge_sources(openalex, europepmc, crossref, arxiv, scidir)
+    src_funcs = {
+        "openalex": search_openalex,
+        "europepmc": search_europe_pmc,
+        "crossref": search_crossref,
+        "arxiv": search_arxiv,
+        "sciencedirect": search_sciencedirect,
+    }
+    selected = [s.lower() for s in (sources or src_funcs.keys()) if s.lower() in src_funcs]
+    searches = [src_funcs[s](keywords, max_records) for s in selected]
+    db = _merge_sources(*searches)
     print(f"Всего уникальных записей: {len(db)}")
 
     seen = load_seen_inventory()
@@ -126,13 +124,13 @@ def run_pipeline(
         full_text = ""
         if property_names_units_filter is not None:
             if pdf_ok:
-                pdf_path = PDF_DIR / f"{doi_to_fname(rec_id)}.pdf"
+                pdf_path = config.PDF_DIR / f"{doi_to_fname(rec_id)}.pdf"
                 full_text += extract_text_from_pdf(pdf_path)
                 tt = extract_tables_text(pdf_path)
                 if tt:
                     full_text += "\n\n" + tt
             if xml_ok:
-                xml_path = XML_DIR / f"{doi_to_fname(rec_id)}.xml"
+                xml_path = config.XML_DIR / f"{doi_to_fname(rec_id)}.xml"
                 full_text += "\n\n" + extract_text_from_xml(xml_path)
 
             full_text = normalize_spaces(full_text.strip())
@@ -147,7 +145,7 @@ def run_pipeline(
                     filter_pass = names_found and units_found
                 else:
                     filter_pass = True
-                (TEXT_DIR / f"{doi_to_fname(rec_id)}.txt").write_text(
+                (config.TEXT_DIR / f"{doi_to_fname(rec_id)}.txt").write_text(
                     full_text, encoding="utf-8", errors="ignore"
                 )
                 if not filter_pass:
@@ -168,5 +166,5 @@ def run_pipeline(
         }
         append_inventory_row(row)
 
-    print(f"Готово. Сводка в {output_directory}/inventory.csv")
+    print(f"Готово. Сводка в {config.LOG_INVENTORY}")
 

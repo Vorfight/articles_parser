@@ -2,7 +2,6 @@ import math
 from xml.etree import ElementTree as ET
 from urllib.parse import urlencode
 from tqdm import tqdm
-from config import KEY_TERMS
 from utils import safe_get, norm_doi
 
 NS = {
@@ -33,44 +32,42 @@ def _parse_entry(entry_el):
         "raw": {"arxiv_id": arxiv_id, "doi": doi},
     }
 
-def search_arxiv(max_records=200):
-    clauses = []
-    for t in KEY_TERMS:
-        tq = f"\"{t}\""
-        clauses.append(f"ti:{tq}")
-        clauses.append(f"abs:{tq}")
-    query = "(" + " OR ".join(clauses) + ")"
-
+def search_arxiv(keywords: list[str], max_records=200):
     base = "https://export.arxiv.org/api/query"
     per_page = 100
     pages = math.ceil(max_records / per_page)
     results = {}
-
-    for i in tqdm(range(pages), desc="arXiv search pages", unit="page"):
-        start = i * per_page
-        size = min(per_page, max_records - start)
-        if size <= 0:
-            break
-        params = {
-            "search_query": query,
-            "start": start,
-            "max_results": size,
-            "sortBy": "submittedDate",
-            "sortOrder": "descending",
-        }
-        r = safe_get(f"{base}?{urlencode(params)}", stream=False)
-        if not r:
-            break
-        try:
-            root = ET.fromstring(r.text)
-        except Exception:
-            break
-        for entry in root.findall("atom:entry", namespaces=NS):
-            parsed = _parse_entry(entry)
-            if not parsed:
-                continue
-            rec_id, rec = parsed
-            if rec_id in results:
-                continue
-            results[rec_id] = rec
+    pbar = tqdm(total=pages * len(keywords), desc="arXiv search pages", unit="page")
+    for kw in keywords:
+        clauses = [f"ti:\"{kw}\"", f"abs:\"{kw}\""]
+        query = "(" + " OR ".join(clauses) + ")"
+        for i in range(pages):
+            start = i * per_page
+            size = min(per_page, max_records - start)
+            if size <= 0:
+                break
+            params = {
+                "search_query": query,
+                "start": start,
+                "max_results": size,
+                "sortBy": "submittedDate",
+                "sortOrder": "descending",
+            }
+            r = safe_get(f"{base}?{urlencode(params)}", stream=False)
+            if not r:
+                break
+            try:
+                root = ET.fromstring(r.text)
+            except Exception:
+                break
+            for entry in root.findall("atom:entry", namespaces=NS):
+                parsed = _parse_entry(entry)
+                if not parsed:
+                    continue
+                rec_id, rec = parsed
+                if rec_id in results:
+                    continue
+                results[rec_id] = rec
+            pbar.update(1)
+    pbar.close()
     return results
