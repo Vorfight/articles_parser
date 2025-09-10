@@ -22,7 +22,7 @@ def download_file(url, target_path: Path) -> bool:
 
 def download_via_libgen_stub(doi: str, pdf_path: Path) -> bool:
     try:
-        searcher = LibgenSearch()
+        searcher = LibgenSearch(mirror="bz")
         results = searcher.search_default(doi)
         if not results:
             return False
