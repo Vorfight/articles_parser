@@ -6,9 +6,9 @@ from config import LOG_INVENTORY
 
 COLUMNS = [
     "doi", "title", "source",
-    "abstract_available", "gamma_in_ta", "gamma_in_text",
+    "abstract_available", "abstract_matched",
     "pdf_downloaded", "xml_downloaded",
-    "dose_const_found", "g_value_found",
+    "names_found", "units_found",
     "notes"
 ]
 
