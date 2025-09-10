@@ -1,5 +1,5 @@
 from pathlib import Path
-from config import (LOG_PDF_DOI, LOG_XML_DOI, LOG_DOI_NOT_DOWNL)
+from config import (PDF_DIR, XML_DIR, LOG_PDF_DOI, LOG_XML_DOI, LOG_DOI_NOT_DOWNL)
 from utils import safe_get, is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
 from libgen_api_enhanced import LibgenSearch
 
@@ -34,9 +34,9 @@ def download_via_libgen_stub(doi: str, pdf_path: Path) -> bool:
     except Exception:
         return False
 
-def try_download_pdf_with_validation(doi: str, primary_url: str | None) -> bool:
-    """Каскад: primary_url -> LibGen(stub). Проверяем %PDF- после каждой попытки."""
-    pdf_path = Path("data/pdfs") / f"{doi_to_fname(doi)}.pdf"
+def try_download_pdf_with_validation(doi: str, primary_url: str | None, oa_only: bool = False) -> bool:
+    """Cascade: try primary_url, then LibGen (if allowed). Validate PDF signature after each attempt."""
+    pdf_path = PDF_DIR / f"{doi_to_fname(doi)}.pdf"
 
     # 1) прямой URL
     if primary_url:
@@ -45,18 +45,20 @@ def try_download_pdf_with_validation(doi: str, primary_url: str | None) -> bool:
             return True
         delete_if_exists(pdf_path)
 
-    # 2) LibGen
-    if download_via_libgen_stub(doi, pdf_path) and is_valid_pdf(pdf_path):
-        append_line(LOG_PDF_DOI, doi)
-        return True
-    delete_if_exists(pdf_path)
+    # 2) LibGen (если разрешено)
+    if not oa_only:
+        if download_via_libgen_stub(doi, pdf_path) and is_valid_pdf(pdf_path):
+            append_line(LOG_PDF_DOI, doi)
+            return True
+        delete_if_exists(pdf_path)
+
     append_line(LOG_DOI_NOT_DOWNL, doi)
     return False
 
 def try_download_xml(doi: str, xml_url: str | None) -> bool:
     if not xml_url:
         return False
-    xml_path = Path("data/xmls") / f"{doi_to_fname(doi)}.xml"
+    xml_path = XML_DIR / f"{doi_to_fname(doi)}.xml"
     ok = download_file(xml_url, xml_path)
     if ok:
         append_line(LOG_XML_DOI, doi)
