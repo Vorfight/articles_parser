@@ -1,8 +1,6 @@
 from pathlib import Path
-from urllib.parse import quote_plus
-from config import (UNPAYWALL_EMAIL, LOG_PDF_DOI, LOG_XML_DOI, LOG_DOI_NOT_DOWNL)
+from config import (LOG_PDF_DOI, LOG_XML_DOI, LOG_DOI_NOT_DOWNL)
 from utils import safe_get, is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
-from utils import safe_request_json
 from libgen_api_enhanced import LibgenSearch
 
 def append_line(path: Path, doi: str):
@@ -22,25 +20,6 @@ def download_file(url, target_path: Path) -> bool:
     except Exception:
         return False
 
-def unpaywall_lookup(doi: str) -> str | None:
-    if not UNPAYWALL_EMAIL:
-        return None
-    url = f"https://api.unpaywall.org/v2/{quote_plus(doi)}"
-    params = {"email": UNPAYWALL_EMAIL}
-    data = safe_request_json(url, params=params)
-    if not data:
-        return None
-    loc = data.get("best_oa_location") or {}
-    if isinstance(loc, dict):
-        pdf = loc.get("url_for_pdf") or loc.get("url")
-        if pdf:
-            return pdf
-    for loc in data.get("oa_locations", []) or []:
-        pdf = loc.get("url_for_pdf") or loc.get("url")
-        if pdf:
-            return pdf
-    return None
-
 def download_via_libgen_stub(doi: str, pdf_path: Path) -> bool:
     try:
         searcher = LibgenSearch()
@@ -56,7 +35,7 @@ def download_via_libgen_stub(doi: str, pdf_path: Path) -> bool:
         return False
 
 def try_download_pdf_with_validation(doi: str, primary_url: str | None) -> bool:
-    """Каскад: primary_url -> Unpaywall -> LibGen(stub). Проверяем %PDF- после каждой попытки."""
+    """Каскад: primary_url -> LibGen(stub). Проверяем %PDF- после каждой попытки."""
     pdf_path = Path("data/pdfs") / f"{doi_to_fname(doi)}.pdf"
 
     # 1) прямой URL
@@ -66,15 +45,7 @@ def try_download_pdf_with_validation(doi: str, primary_url: str | None) -> bool:
             return True
         delete_if_exists(pdf_path)
 
-    # 2) Unpaywall
-    up = unpaywall_lookup(doi)
-    if up:
-        if download_file(up, pdf_path) and is_valid_pdf(pdf_path):
-            append_line(LOG_PDF_DOI, doi)
-            return True
-        delete_if_exists(pdf_path)
-
-    # 3) LibGen
+    # 2) LibGen
     if download_via_libgen_stub(doi, pdf_path) and is_valid_pdf(pdf_path):
         append_line(LOG_PDF_DOI, doi)
         return True
