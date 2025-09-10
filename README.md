@@ -53,8 +53,3 @@ run_pipeline(
     output_directory="./output",
 )
 ```
-
-
-## Examples
-
-See [`examples/test.ipynb`](examples/test.ipynb) for a sample notebook demonstrating both Python API and CLI usage.
