@@ -34,6 +34,25 @@ python cli.py --keywords water viscosity \
     --abstract-filter --abstract-patterns temperature \
     --property-filter names --property-names viscosity "dynamic viscosity" \
     --oa-only --max-per-source 50 --output-dir ./output
+    
+```
+
+Параметры можно комбинировать в зависимости от задачи. Скрипт также можно
+использовать как библиотеку:
+
+```python
+from articles_parser import run_pipeline
+
+run_pipeline(
+    keywords=["water", "viscosity"],
+    abstract_filter=True,
+    abstract_patterns=["temperature"],
+    property_names_units_filter="names",
+    property_names=["viscosity", "dynamic viscosity"],
+    oa_only=True,
+    max_per_source=50,
+    output_directory="./output",
+)
 ```
 
 Параметры можно комбинировать в зависимости от задачи. Скрипт также можно
