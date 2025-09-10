@@ -53,4 +53,3 @@ run_pipeline(
     output_directory="./output",
 )
 ```
-
