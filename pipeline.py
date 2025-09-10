@@ -1,16 +1,28 @@
+from __future__ import annotations
+
 from pathlib import Path
+import re
 from tqdm import tqdm
 
-from config import (KEY_TERMS, GAMMA_HINTS, PDF_DIR, XML_DIR, TEXT_DIR)
-from utils import ensure_dirs, norm_doi, doi_to_fname, mentions_gamma, normalize_spaces
+from config import (
+    set_keywords,
+    set_output_dir,
+    PDF_DIR,
+    XML_DIR,
+    TEXT_DIR,
+)
+from utils import ensure_dirs, norm_doi, doi_to_fname, normalize_spaces
 from search import (
-    search_openalex, search_europe_pmc,
-    search_arxiv, search_sciencedirect, search_crossref,
+    search_openalex,
+    search_europe_pmc,
+    search_arxiv,
+    search_sciencedirect,
+    search_crossref,
 )
 from download import try_download_pdf_with_validation, try_download_xml
 from extract import extract_text_from_pdf, extract_text_from_xml, extract_tables_text
 from inventory import load_seen_inventory, ensure_inventory_file, append_inventory_row
-from patterns import DOSE_UNITS_RE, G_UNITS_RE
+
 
 def _merge_sources(*dicts) -> dict[str, dict]:
     db: dict[str, dict] = {}
@@ -24,24 +36,54 @@ def _merge_sources(*dicts) -> dict[str, dict]:
                         db[rec_id][k] = rec[k]
     return db
 
-def run_pipeline(max_per_source=200):
-    ensure_dirs()
-    ensure_inventory_file()  # ← файл и заголовок появятся сразу
 
-    # --- ПОСЛЕДОВАТЕЛЬНЫЙ ПОИСК ---
-    openalex = search_openalex(max_per_source)
-    europepmc = search_europe_pmc(max_per_source)
-    crossref = search_crossref(max_per_source)
-    arxiv = search_arxiv(max_per_source)
-    scidir = search_sciencedirect(max_per_source)
+def run_pipeline(
+    keywords: list[str],
+    abstract_filter: bool = False,
+    abstract_patterns: list[str] | None = None,
+    property_names_units_filter: str | None = None,
+    property_names: list[str] | None = None,
+    property_units: list[str] | None = None,
+    oa_only: bool = False,
+    max_per_source: int | None = None,
+    output_directory: str | Path = "data",
+):
+    """Execute full pipeline of search, download and filtering."""
+
+    # Настройка конфигурации
+    set_keywords(keywords)
+    set_output_dir(output_directory)
+    ensure_dirs()
+    ensure_inventory_file()
+
+    max_records = max_per_source if max_per_source is not None else 1_000_000
+
+    # --- поиск по источникам ---
+    openalex = search_openalex(max_records)
+    europepmc = search_europe_pmc(max_records)
+    crossref = search_crossref(max_records)
+    arxiv = search_arxiv(max_records)
+    scidir = search_sciencedirect(max_records)
 
     db = _merge_sources(openalex, europepmc, crossref, arxiv, scidir)
     print(f"Всего уникальных записей: {len(db)}")
 
     seen = load_seen_inventory()
 
+    abstract_res = [re.compile(p, re.IGNORECASE) for p in (abstract_patterns or [])]
+    names_re = (
+        re.compile("|".join(map(re.escape, property_names)), re.IGNORECASE)
+        if property_names
+        else None
+    )
+    units_re = (
+        re.compile("|".join(map(re.escape, property_units)), re.IGNORECASE)
+        if property_units
+        else None
+    )
+
     for rec_id, rec in db.items():
-        nd = norm_doi(rec_id) or rec_id  # допускаем "arxiv:xxxx"
+        nd = norm_doi(rec_id) or rec_id
         if nd in seen:
             continue
 
@@ -49,68 +91,82 @@ def run_pipeline(max_per_source=200):
         abstr = rec.get("abstract") or ""
         abstract_available = bool(title) and bool(abstr)
 
-        gamma_in_ta = False
-        gamma_in_text = False
+        notes: list[str] = []
+        abstract_matched = not abstract_filter
         pdf_ok = False
         xml_ok = False
-        dose_const_found = False
-        g_value_found = False
-        notes = []
+        names_found = False
+        units_found = False
 
-        # — решение о скачивании —
-        if abstract_available:
-            gamma_in_ta = mentions_gamma(title + "\n" + abstr, GAMMA_HINTS)
-            if not gamma_in_ta:
-                notes.append("skip:no_gamma_in_title_abstract")
+        if abstract_filter:
+            if abstract_available and all(p.search(title + "\n" + abstr) for p in abstract_res):
+                abstract_matched = True
             else:
-                pdf_ok = try_download_pdf_with_validation(rec_id, rec.get("pdf_url"))
-                xml_ok = try_download_xml(rec_id, rec.get("xml_url"))
-                if not pdf_ok and not xml_ok:
-                    notes.append("download_failed")
-        else:
-            pdf_ok = try_download_pdf_with_validation(rec_id, rec.get("pdf_url"))
-            xml_ok = try_download_xml(rec_id, rec.get("xml_url"))
-            if not pdf_ok and not xml_ok:
-                notes.append("download_failed")
+                notes.append("skip:abstract_filter")
+                row = {
+                    "doi": nd,
+                    "title": title,
+                    "source": rec.get("source", ""),
+                    "abstract_available": abstract_available,
+                    "abstract_matched": False,
+                    "pdf_downloaded": False,
+                    "xml_downloaded": False,
+                    "names_found": False,
+                    "units_found": False,
+                    "notes": ",".join(notes),
+                }
+                append_inventory_row(row)
+                continue
 
-        # — извлечение/поиск —
+        pdf_ok = try_download_pdf_with_validation(rec_id, rec.get("pdf_url"), oa_only=oa_only)
+        xml_ok = try_download_xml(rec_id, rec.get("xml_url"))
+        if not pdf_ok and not xml_ok:
+            notes.append("download_failed")
+
         full_text = ""
-        if pdf_ok:
-            pdf_path = PDF_DIR / f"{doi_to_fname(rec_id)}.pdf"
-            full_text += extract_text_from_pdf(pdf_path)
-            tt = extract_tables_text(pdf_path)
-            if tt:
-                full_text += "\n\n" + tt
-        if xml_ok:
-            xml_path = XML_DIR / f"{doi_to_fname(rec_id)}.xml"
-            full_text += "\n\n" + extract_text_from_xml(xml_path)
+        if property_names_units_filter is not None:
+            if pdf_ok:
+                pdf_path = PDF_DIR / f"{doi_to_fname(rec_id)}.pdf"
+                full_text += extract_text_from_pdf(pdf_path)
+                tt = extract_tables_text(pdf_path)
+                if tt:
+                    full_text += "\n\n" + tt
+            if xml_ok:
+                xml_path = XML_DIR / f"{doi_to_fname(rec_id)}.xml"
+                full_text += "\n\n" + extract_text_from_xml(xml_path)
 
-        full_text = normalize_spaces(full_text.strip())
-        if full_text:
-            if not abstract_available:
-                gamma_in_text = mentions_gamma(full_text, GAMMA_HINTS)
-            gamma_flag = gamma_in_ta or gamma_in_text
-            if gamma_flag:
-                if DOSE_UNITS_RE.search(full_text):
-                    dose_const_found = True
-                if G_UNITS_RE.search(full_text):
-                    g_value_found = True
-            (TEXT_DIR / f"{doi_to_fname(rec_id)}.txt").write_text(full_text, encoding="utf-8", errors="ignore")
+            full_text = normalize_spaces(full_text.strip())
+            if full_text:
+                names_found = bool(names_re.search(full_text)) if names_re else False
+                units_found = bool(units_re.search(full_text)) if units_re else False
+                if property_names_units_filter == "names":
+                    filter_pass = names_found
+                elif property_names_units_filter == "units":
+                    filter_pass = units_found
+                elif property_names_units_filter == "names_units":
+                    filter_pass = names_found and units_found
+                else:
+                    filter_pass = True
+                (TEXT_DIR / f"{doi_to_fname(rec_id)}.txt").write_text(
+                    full_text, encoding="utf-8", errors="ignore"
+                )
+                if not filter_pass:
+                    notes.append("skip:fulltext_filter")
+        # no extraction if property_names_units_filter is None
 
-        # — пишем строку СРАЗУ —
         row = {
             "doi": nd,
             "title": title,
             "source": rec.get("source", ""),
             "abstract_available": abstract_available,
-            "gamma_in_ta": gamma_in_ta,
-            "gamma_in_text": gamma_in_text,
+            "abstract_matched": abstract_matched,
             "pdf_downloaded": pdf_ok,
             "xml_downloaded": xml_ok,
-            "dose_const_found": dose_const_found,
-            "g_value_found": g_value_found,
-            "notes": ",".join(notes) if notes else ""
+            "names_found": names_found,
+            "units_found": units_found,
+            "notes": ",".join(notes) if notes else "",
         }
-        append_inventory_row(row)  # ← моментальный лог прогресса
+        append_inventory_row(row)
 
-    print("Готово. Сводка в data/inventory.csv")
+    print(f"Готово. Сводка в {output_directory}/inventory.csv")
+
