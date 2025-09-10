@@ -6,8 +6,7 @@ KEY_TERMS: list[str] = []
 
 def set_keywords(keywords: list[str]) -> None:
     """Set search keywords used by search modules."""
-    global KEY_TERMS
-    KEY_TERMS = keywords or []
+    KEY_TERMS[:] = keywords or []
 
 # HTTP / API
 REQUESTS_TIMEOUT = 30

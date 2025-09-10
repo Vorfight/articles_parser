@@ -33,8 +33,9 @@ pip install -r requirements.txt
 python cli.py --keywords water viscosity \
     --abstract-filter --abstract-patterns temperature \
     --property-filter names --property-names viscosity "dynamic viscosity" \
-    --oa-only --max-per-source 50 --output-dir ./output
-    
+    --oa-only --max-per-source 50 --output-dir ./output \
+    --sources OpenAlex Sciencedirect
+
 ```
 
 Параметры можно комбинировать в зависимости от задачи. Скрипт также можно
@@ -52,6 +53,7 @@ run_pipeline(
     oa_only=True,
     max_per_source=50,
     output_directory="./output",
+    sources=["OpenAlex", "Sciencedirect"],
 )
 ```
 

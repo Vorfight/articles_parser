@@ -19,6 +19,12 @@ def main(argv=None):
     parser.add_argument("--oa-only", action="store_true", help="only download open access articles")
     parser.add_argument("--max-per-source", type=int, default=None, help="limit of records per source")
     parser.add_argument("--output-dir", default="data", help="directory for output data")
+    parser.add_argument(
+        "--sources",
+        nargs="*",
+        default=[],
+        help="list of sources to search (e.g. OpenAlex Sciencedirect)",
+    )
     args = parser.parse_args(argv)
 
     run_pipeline(
@@ -31,6 +37,7 @@ def main(argv=None):
         oa_only=args.oa_only,
         max_per_source=args.max_per_source,
         output_directory=args.output_dir,
+        sources=args.sources or None,
     )
 
 
