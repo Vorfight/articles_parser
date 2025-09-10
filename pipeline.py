@@ -118,7 +118,7 @@ def run_pipeline(
                 append_inventory_row(row)
                 continue
 
-        pdf_ok = try_download_pdf_with_validation(rec_id, rec.get("pdf_url"), oa_only=oa_only)
+        pdf_ok = try_download_pdf_with_validation(rec_id, title, rec.get("pdf_url"), oa_only=oa_only)
         xml_ok = try_download_xml(rec_id, rec.get("xml_url"))
         if not pdf_ok and not xml_ok:
             notes.append("download_failed")

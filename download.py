@@ -20,21 +20,22 @@ def download_file(url, target_path: Path) -> bool:
     except Exception:
         return False
 
-def download_via_libgen_stub(doi: str, pdf_path: Path) -> bool:
+def download_via_libgen_stub(title: str, pdf_path: Path) -> bool:
     try:
         searcher = LibgenSearch(mirror="bz")
-        results = searcher.search_default(doi)
+        results = searcher.search_default(title)
         if not results:
             return False
         book = results[0]
         book.resolve_direct_download_link()
         if not book.resolved_download_link:
             return False
+        print('libgen')
         return download_file(book.resolved_download_link, pdf_path)
     except Exception:
         return False
 
-def try_download_pdf_with_validation(doi: str, primary_url: str | None, oa_only: bool = False) -> bool:
+def try_download_pdf_with_validation(doi: str, title: str, primary_url: str | None, oa_only: bool = False) -> bool:
     """Cascade: try primary_url, then LibGen (if allowed). Validate PDF signature after each attempt."""
     pdf_path = PDF_DIR / f"{doi_to_fname(doi)}.pdf"
 
@@ -47,7 +48,7 @@ def try_download_pdf_with_validation(doi: str, primary_url: str | None, oa_only:
 
     # 2) LibGen (если разрешено)
     if not oa_only:
-        if download_via_libgen_stub(doi, pdf_path) and is_valid_pdf(pdf_path):
+        if download_via_libgen_stub(title, pdf_path) and is_valid_pdf(pdf_path):
             append_line(LOG_PDF_DOI, doi)
             return True
         delete_if_exists(pdf_path)
