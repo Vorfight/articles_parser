@@ -30,7 +30,6 @@ def download_via_libgen_stub(title: str, pdf_path: Path) -> bool:
         book.resolve_direct_download_link()
         if not book.resolved_download_link:
             return False
-        print('libgen')
         return download_file(book.resolved_download_link, pdf_path)
     except Exception:
         return False
