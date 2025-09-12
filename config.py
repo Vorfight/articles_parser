@@ -1,7 +1,7 @@
 from pathlib import Path
 import os
 
-# Ключевые термины поиска (устанавливаются во время выполнения)
+# Search keywords (set at runtime)
 KEY_TERMS: list[str] = []
 
 def set_keywords(keywords: list[str]) -> None:
@@ -12,7 +12,7 @@ def set_keywords(keywords: list[str]) -> None:
 REQUESTS_TIMEOUT = 30
 RATE_LIMIT_SLEEP = 0.5
 
-# Пути (могут быть переопределены пользователем)
+# Paths (can be overridden by the user)
 DATA_DIR = Path("data")
 PDF_DIR = DATA_DIR / "pdfs"
 XML_DIR = DATA_DIR / "xmls"
@@ -37,5 +37,5 @@ def set_output_dir(path: str | Path) -> None:
     LOG_DOI_NOT_DOWNL = DATA_DIR / "doi_not_downl.txt"
 
 # Unpaywall
-UNPAYWALL_EMAIL = "vorfight@gmail.com" #os.environ.get("UNPAYWALL_EMAIL", "").strip()
-ELSEVIER_API_KEY = "7f59af901d2d86f78a1fd60c1bf9426a" #os.environ.get("ELSEVIER_API_KEY", "").strip()
+UNPAYWALL_EMAIL = "vorfight@gmail.com"  # os.environ.get("UNPAYWALL_EMAIL", "").strip()
+ELSEVIER_API_KEY = "7f59af901d2d86f78a1fd60c1bf9426a"  # os.environ.get("ELSEVIER_API_KEY", "").strip()

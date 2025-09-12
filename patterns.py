@@ -1,13 +1,13 @@
 import re
 
-# базовые куски
+# basic pieces
 INV = r'(?:-1|⁻1|\\?-1|\\?⁻1)'
 
-# единицы для dose constant
+# units for dose constant
 DOSE_UNITS = rf'(?:k?Gy{INV}|rad{INV}|krad{INV})'
 DOSE_UNITS_RE = re.compile(DOSE_UNITS, re.IGNORECASE)
 
-# единицы для G/RCY (в тексте допускаем и отсутствие единиц)
+# units for G/RCY (allow absence of units in text)
 G_UNITS = (
     r'(?:'
     r'(?:molecules?|mols?|mol)\s*/\s*100\s*eV'

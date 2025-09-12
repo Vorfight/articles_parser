@@ -39,14 +39,14 @@ def try_download_pdf_with_validation(doi: str, title: str, primary_url: str | No
     """Cascade: try primary_url, then LibGen (if allowed). Validate PDF signature after each attempt."""
     pdf_path = config.PDF_DIR / f"{doi_to_fname(doi)}.pdf"
 
-    # 1) прямой URL
+    # 1) direct URL
     if primary_url:
         if download_file(primary_url, pdf_path) and is_valid_pdf(pdf_path):
             append_line(config.LOG_PDF_DOI, doi)
             return True
         delete_if_exists(pdf_path)
 
-    # 2) LibGen (если разрешено)
+    # 2) LibGen (if allowed)
     if not oa_only:
         if download_via_libgen_stub(title, pdf_path) and is_valid_pdf(pdf_path):
             append_line(config.LOG_PDF_DOI, doi)

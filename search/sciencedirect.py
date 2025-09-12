@@ -6,7 +6,7 @@ import config
 from utils import safe_request_json, norm_doi
 
 MAX_RETRIES = 5
-RETRY_BASE_DELAY = 5  # сек
+RETRY_BASE_DELAY = 5  # sec
 
 def _is_open_access(entry: dict) -> bool:
     """
@@ -21,10 +21,10 @@ def _is_open_access(entry: dict) -> bool:
     return False
 
 def _safe_request_with_retry(url, params):
-    """Повторяет запрос с увеличивающейся задержкой, если API вернул ошибку"""
+    """Retry with exponential backoff when the API returns an error."""
     delay = RETRY_BASE_DELAY
     for attempt in range(MAX_RETRIES):
-        data = safe_request_json(url, params=params) # safe_request_json вернёт None при любой ошибке
+        data = safe_request_json(url, params=params)  # safe_request_json returns None on any error
         if data is None:
             time.sleep(delay)
         else:
@@ -36,8 +36,8 @@ def _safe_request_with_retry(url, params):
 def search_sciencedirect(keywords: list[str], max_records=200, progress_cb=None):
     """
     ScienceDirect Search API:
-      - Фильтрация Open Access
-      - PDF URL строится через Content API (OA статьи)
+      - Open Access filtering
+      - PDF URL is built via Content API (OA articles)
     """
     results = {}
     if not config.ELSEVIER_API_KEY:

@@ -1,3 +1,2 @@
-# re-export удобных точек входа
+# Re-export convenient entry points
 from .pipeline import run_pipeline
-

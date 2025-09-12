@@ -4,7 +4,7 @@ import config
 
 _SPECIAL_SPACES = dict.fromkeys([
     0x00A0,  # NO-BREAK SPACE
-    0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006,  # EN/EM и т.п.
+    0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006,  # EN/EM etc.
     0x2007, 0x2008, 0x2009, 0x200A,                          # figure, punctuation, thin, hair
     0x202F,  # NARROW NO-BREAK SPACE
     0x205F,  # MEDIUM MATHEMATICAL SPACE
@@ -15,13 +15,13 @@ _SPECIAL_SPACES = dict.fromkeys([
 ], " ")  # map → ordinary space
 
 def normalize_spaces(text: str) -> str:
-    """Заменяет NBSP/узкие/zero-width пробелы на обычный пробел, упрощает поведение регулярок."""
+    """Replace NBSP/narrow/zero-width spaces with regular spaces to simplify regex behaviour."""
     if not text:
         return text
-    # заменим спец-пробелы
+    # replace special spaces
     t = text.translate(_SPECIAL_SPACES)
-    # унифицируем «смех» из пробелов: не трогаем переводы строк
-    # (много пробелов подряд -> один)
+    # collapse sequences of spaces while keeping newlines
+    # (multiple spaces -> single)
     t = re.sub(r"[ \t\u000B\u000C\r]+", " ", t)
     return t
 
@@ -38,8 +38,8 @@ def norm_doi(raw: str | None) -> str | None:
     return doi.lower() if doi else None
 
 def doi_to_fname(doi: str) -> str:
-    clean = norm_doi(doi) or doi  # если это "arxiv:xxx", оставим как есть
-    # заменим проблемные символы
+    clean = norm_doi(doi) or doi  # if it's "arxiv:xxx", keep as is
+    # replace problematic characters
     return (clean.replace('/', '_')
                  .replace(':', '_')
                  .replace(' ', '_'))

@@ -5,11 +5,11 @@ import pandas as pd
 import config
 
 COLUMNS = [
-    "doi", "title", "source",
+    "doi", "title", "source", "keyword",
     "abstract_available", "abstract_matched",
     "pdf_downloaded", "xml_downloaded",
     "names_found", "units_found",
-    "notes"
+    "notes",
 ]
 
 def load_seen_inventory() -> set[str]:
@@ -24,7 +24,7 @@ def load_seen_inventory() -> set[str]:
     return seen
 
 def ensure_inventory_file():
-    """Создаёт CSV с заголовком, если его ещё нет (и сразу синхронизирует на диск)."""
+    """Create CSV with header if it doesn't exist (fsync immediately)."""
     if not config.LOG_INVENTORY.exists():
         config.LOG_INVENTORY.parent.mkdir(parents=True, exist_ok=True)
         with config.LOG_INVENTORY.open("w", newline="", encoding="utf-8") as f:
@@ -34,7 +34,7 @@ def ensure_inventory_file():
             os.fsync(f.fileno())
 
 def append_inventory_row(row: dict, flush: bool = True):
-    """Добавляет одну строку в CSV. По умолчанию сразу flush/fsync для «живого» прогресса."""
+    """Append a row to CSV. Flush/fsync by default for real-time progress."""
     if not config.LOG_INVENTORY.exists():
         ensure_inventory_file()
     with config.LOG_INVENTORY.open("a", newline="", encoding="utf-8") as f:
@@ -44,7 +44,7 @@ def append_inventory_row(row: dict, flush: bool = True):
             f.flush()
             os.fsync(f.fileno())
 
-# Старая пакетная запись (если где-то нужна)
+# Legacy batch writing (kept for compatibility)
 def update_inventory(rows: list[dict]):
     ensure_inventory_file()
     with config.LOG_INVENTORY.open("a", newline="", encoding="utf-8") as f:
