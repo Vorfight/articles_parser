@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 from pdfminer.high_level import extract_text as pdf_extract_text
 from utils import normalize_spaces
 
-# опциональные зависимости для таблиц
+# optional dependencies for tables
 HAS_CAMELOT, HAS_TABULA = False, False
 try:
     import camelot  # type: ignore

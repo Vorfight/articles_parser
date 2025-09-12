@@ -45,15 +45,14 @@ def run_pipeline(
 ):
     """Execute full pipeline of search, download and filtering."""
 
-    # Настройка конфигурации
-    config.set_keywords(keywords)
+    # Configure paths and inventory
     config.set_output_dir(output_directory)
     ensure_dirs()
     ensure_inventory_file()
 
     max_records = max_per_source if max_per_source is not None else 1_000_000
 
-    # --- поиск по источникам ---
+    # --- search by sources ---
     src_funcs = {
         "openalex": search_openalex,
         "europepmc": search_europe_pmc,
@@ -62,9 +61,6 @@ def run_pipeline(
         "sciencedirect": search_sciencedirect,
     }
     selected = [s.lower() for s in (sources or src_funcs.keys()) if s.lower() in src_funcs]
-    searches = [src_funcs[s](keywords, max_records) for s in selected]
-    db = _merge_sources(*searches)
-    print(f"Всего уникальных записей: {len(db)}")
 
     seen = load_seen_inventory()
 
@@ -80,91 +76,101 @@ def run_pipeline(
         else None
     )
 
-    for rec_id, rec in db.items():
-        nd = norm_doi(rec_id) or rec_id
-        if nd in seen:
-            continue
+    for kw in keywords:
+        print(f"\n=== Keyword: {kw} ===")
+        config.set_keywords([kw])
+        searches = [src_funcs[s]([kw], max_records) for s in selected]
+        db = _merge_sources(*searches)
+        print(f"Total unique records for '{kw}': {len(db)}")
 
-        title = rec.get("title") or ""
-        abstr = rec.get("abstract") or ""
-        abstract_available = bool(title) and bool(abstr)
-
-        notes: list[str] = []
-        abstract_matched = not abstract_filter
-        pdf_ok = False
-        xml_ok = False
-        names_found = False
-        units_found = False
-
-        if abstract_filter:
-            if abstract_available and all(p.search(title + "\n" + abstr) for p in abstract_res):
-                abstract_matched = True
-            else:
-                notes.append("skip:abstract_filter")
-                row = {
-                    "doi": nd,
-                    "title": title,
-                    "source": rec.get("source", ""),
-                    "abstract_available": abstract_available,
-                    "abstract_matched": False,
-                    "pdf_downloaded": False,
-                    "xml_downloaded": False,
-                    "names_found": False,
-                    "units_found": False,
-                    "notes": ",".join(notes),
-                }
-                append_inventory_row(row)
+        for rec_id, rec in db.items():
+            nd = norm_doi(rec_id) or rec_id
+            if nd in seen:
                 continue
 
-        pdf_ok = try_download_pdf_with_validation(rec_id, title, rec.get("pdf_url"), oa_only=oa_only)
-        xml_ok = try_download_xml(rec_id, rec.get("xml_url"))
-        if not pdf_ok and not xml_ok:
-            notes.append("download_failed")
+            title = (rec.get("title") or "").replace("\n", " ").replace("\r", " ")
+            abstr = rec.get("abstract") or ""
+            abstract_available = bool(title) and bool(abstr)
 
-        full_text = ""
-        if property_names_units_filter is not None:
-            if pdf_ok:
-                pdf_path = config.PDF_DIR / f"{doi_to_fname(rec_id)}.pdf"
-                full_text += extract_text_from_pdf(pdf_path)
-                tt = extract_tables_text(pdf_path)
-                if tt:
-                    full_text += "\n\n" + tt
-            if xml_ok:
-                xml_path = config.XML_DIR / f"{doi_to_fname(rec_id)}.xml"
-                full_text += "\n\n" + extract_text_from_xml(xml_path)
+            notes: list[str] = []
+            abstract_matched = not abstract_filter
+            pdf_ok = False
+            xml_ok = False
+            names_found = False
+            units_found = False
 
-            full_text = normalize_spaces(full_text.strip())
-            if full_text:
-                names_found = bool(names_re.search(full_text)) if names_re else False
-                units_found = bool(units_re.search(full_text)) if units_re else False
-                if property_names_units_filter == "names":
-                    filter_pass = names_found
-                elif property_names_units_filter == "units":
-                    filter_pass = units_found
-                elif property_names_units_filter == "names_units":
-                    filter_pass = names_found and units_found
+            if abstract_filter:
+                if abstract_available and all(p.search(title + "\n" + abstr) for p in abstract_res):
+                    abstract_matched = True
                 else:
-                    filter_pass = True
-                (config.TEXT_DIR / f"{doi_to_fname(rec_id)}.txt").write_text(
-                    full_text, encoding="utf-8", errors="ignore"
-                )
-                if not filter_pass:
-                    notes.append("skip:fulltext_filter")
-        # no extraction if property_names_units_filter is None
+                    notes.append("skip:abstract_filter")
+                    row = {
+                        "doi": nd,
+                        "title": title,
+                        "source": rec.get("source", ""),
+                        "keyword": kw,
+                        "abstract_available": abstract_available,
+                        "abstract_matched": False,
+                        "pdf_downloaded": False,
+                        "xml_downloaded": False,
+                        "names_found": False,
+                        "units_found": False,
+                        "notes": ",".join(notes),
+                    }
+                    append_inventory_row(row)
+                    seen.add(nd)
+                    continue
 
-        row = {
-            "doi": nd,
-            "title": title,
-            "source": rec.get("source", ""),
-            "abstract_available": abstract_available,
-            "abstract_matched": abstract_matched,
-            "pdf_downloaded": pdf_ok,
-            "xml_downloaded": xml_ok,
-            "names_found": names_found,
-            "units_found": units_found,
-            "notes": ",".join(notes) if notes else "",
-        }
-        append_inventory_row(row)
+            pdf_ok = try_download_pdf_with_validation(rec_id, title, rec.get("pdf_url"), oa_only=oa_only)
+            xml_ok = try_download_xml(rec_id, rec.get("xml_url"))
+            if not pdf_ok and not xml_ok:
+                notes.append("download_failed")
 
-    print(f"Готово. Сводка в {config.LOG_INVENTORY}")
+            full_text = ""
+            if property_names_units_filter is not None:
+                if pdf_ok:
+                    pdf_path = config.PDF_DIR / f"{doi_to_fname(rec_id)}.pdf"
+                    full_text += extract_text_from_pdf(pdf_path)
+                    tt = extract_tables_text(pdf_path)
+                    if tt:
+                        full_text += "\n\n" + tt
+                if xml_ok:
+                    xml_path = config.XML_DIR / f"{doi_to_fname(rec_id)}.xml"
+                    full_text += "\n\n" + extract_text_from_xml(xml_path)
+
+                full_text = normalize_spaces(full_text.strip())
+                if full_text:
+                    names_found = bool(names_re.search(full_text)) if names_re else False
+                    units_found = bool(units_re.search(full_text)) if units_re else False
+                    if property_names_units_filter == "names":
+                        filter_pass = names_found
+                    elif property_names_units_filter == "units":
+                        filter_pass = units_found
+                    elif property_names_units_filter == "names_units":
+                        filter_pass = names_found and units_found
+                    else:
+                        filter_pass = True
+                    (config.TEXT_DIR / f"{doi_to_fname(rec_id)}.txt").write_text(
+                        full_text, encoding="utf-8", errors="ignore"
+                    )
+                    if not filter_pass:
+                        notes.append("skip:fulltext_filter")
+            # no extraction if property_names_units_filter is None
+
+            row = {
+                "doi": nd,
+                "title": title,
+                "source": rec.get("source", ""),
+                "keyword": kw,
+                "abstract_available": abstract_available,
+                "abstract_matched": abstract_matched,
+                "pdf_downloaded": pdf_ok,
+                "xml_downloaded": xml_ok,
+                "names_found": names_found,
+                "units_found": units_found,
+                "notes": ",".join(notes) if notes else "",
+            }
+            append_inventory_row(row)
+            seen.add(nd)
+    print(f"Done. Summary in {config.LOG_INVENTORY}")
 
