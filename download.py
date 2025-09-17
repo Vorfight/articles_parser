@@ -1,7 +1,6 @@
 from pathlib import Path
 import config
 from utils import safe_get, is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
-from libgen_api_enhanced import LibgenSearch
 
 def append_line(path: Path, doi: str):
     with path.open("a", encoding="utf-8") as f:
@@ -20,17 +19,35 @@ def download_file(url, target_path: Path) -> bool:
     except Exception:
         return False
 
-def download_via_libgen_stub(title: str, pdf_path: Path) -> bool:
+def download_via_libgen_stub(doi: str, pdf_path: Path) -> bool:
     try:
-        searcher = LibgenSearch(mirror="bz")
-        results = searcher.search_default(title)
-        if not results:
-            return False
-        book = results[0]
-        book.resolve_direct_download_link()
-        if not book.resolved_download_link:
-            return False
-        return download_file(book.resolved_download_link, pdf_path)
+        md5_req = requests.get(f"https://libgen.bz/json.php?object=e&doi={doi}&fields=md5")
+        md5 = find_md5(md5_req.json())
+        mirror_url = f"http://libgen.bz/ads.php?md5={md5}&downloadname={doi}"
+
+        resp = requests.get(mirror_url)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        a = soup.find_all("a", string=lambda s: s and s.strip().upper() == "GET")
+        if not a:
+            raise ValueError("No GET links found on the mirror page")
+
+        for link in a:
+            href = link.get("href")
+            if not href:
+                continue
+            full_url = urljoin(mirror_url, href)
+            params = parse_qs(urlparse(full_url).query)
+            key_vals = params.get("key")
+            if key_vals and key_vals[0]:
+                key = key_vals[0]
+                cdn_base = "https://cdn4.booksdl.lc/get.php"
+                resolved_download_link = f"{cdn_base}?md5={md5}&key={key}"
+                break
+        if not resolved_download_link:
+            raise ValueError("Could not extract 'key' parameter from any GET link")
+        return download_file(resolved_download_link, pdf_path)
     except Exception:
         return False
 
