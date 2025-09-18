@@ -1,13 +1,32 @@
 from pathlib import Path
+from urllib.parse import urlparse
+
 import config
 from utils import safe_get, is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
+
+
+def _is_elsevier_content_url(url: str | None) -> bool:
+    if not url:
+        return False
+    try:
+        hostname = urlparse(url).hostname or ""
+    except Exception:
+        return False
+    return hostname.endswith("elsevier.com") or hostname.endswith("sciencedirect.com")
+
+
+def _elsevier_headers(accept: str) -> dict[str, str]:
+    headers = {"Accept": accept}
+    if config.ELSEVIER_API_KEY:
+        headers["X-ELS-APIKey"] = config.ELSEVIER_API_KEY
+    return headers
 
 def append_line(path: Path, doi: str):
     with path.open("a", encoding="utf-8") as f:
         f.write((norm_doi(doi) or "") + "\n")
 
-def download_file(url, target_path: Path) -> bool:
-    r = safe_get(url, stream=True)
+def download_file(url, target_path: Path, headers: dict[str, str] | None = None) -> bool:
+    r = safe_get(url, stream=True, headers=headers)
     if not r:
         return False
     try:
@@ -57,7 +76,8 @@ def try_download_pdf_with_validation(doi: str, title: str, primary_url: str | No
 
     # 1) direct URL
     if primary_url:
-        if download_file(primary_url, pdf_path) and is_valid_pdf(pdf_path):
+        headers = _elsevier_headers("application/pdf") if _is_elsevier_content_url(primary_url) else None
+        if download_file(primary_url, pdf_path, headers=headers) and is_valid_pdf(pdf_path):
             append_line(config.LOG_PDF_DOI, doi)
             return True
         delete_if_exists(pdf_path)
@@ -76,7 +96,8 @@ def try_download_xml(doi: str, xml_url: str | None) -> bool:
     if not xml_url:
         return False
     xml_path = config.XML_DIR / f"{doi_to_fname(doi)}.xml"
-    ok = download_file(xml_url, xml_path)
+    headers = _elsevier_headers("application/xml") if _is_elsevier_content_url(xml_url) else None
+    ok = download_file(xml_url, xml_path, headers=headers)
     if ok:
         append_line(config.LOG_XML_DOI, doi)
     return ok

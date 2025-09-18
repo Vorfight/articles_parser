@@ -54,10 +54,17 @@ def safe_request_json(url, params=None, headers=None):
         print(e)
         return None
 
-def safe_get(url, stream=False):
+def safe_get(url, stream=False, headers=None, params=None):
     time.sleep(config.RATE_LIMIT_SLEEP)
     try:
-        r = requests.get(url, timeout=config.REQUESTS_TIMEOUT, stream=stream, allow_redirects=True)
+        r = requests.get(
+            url,
+            timeout=config.REQUESTS_TIMEOUT,
+            stream=stream,
+            allow_redirects=True,
+            headers=headers,
+            params=params,
+        )
         r.raise_for_status()
         return r
     except Exception:
