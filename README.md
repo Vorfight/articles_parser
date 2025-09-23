@@ -28,9 +28,9 @@ pip install -r requirements.txt
 3. Run the parser:
 
 ```bash
-python cli.py --keywords water viscosity \
+python cli.py --keywords "oil viscosity" "petrol viscosity" \
     --abstract-filter --abstract-patterns temperature \
-    --property-filter names --property-names viscosity "dynamic viscosity" \
+    --property-filter names --property-names "kinematic viscosity" "dynamic viscosity" \
     --oa-only --max-per-source 50 --output-dir ./output \
     --sources OpenAlex Sciencedirect
 ```
@@ -41,11 +41,11 @@ Parameters can be combined as needed. The package can also be used as a library:
 from pipeline import run_pipeline
 
 run_pipeline(
-    keywords=["water", "viscosity"],
+    keywords=["oil viscosity", "petrol viscosity"],
     abstract_filter=True,
     abstract_patterns=["temperature"],
     property_names_units_filter="names",
-    property_names=["viscosity", "dynamic viscosity"],
+    property_names=["kinematic viscosity", "dynamic viscosity"],
     oa_only=True,
     max_per_source=50,
     output_directory="./output",
