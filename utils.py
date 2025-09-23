@@ -85,8 +85,3 @@ def delete_if_exists(path: Path):
     except Exception:
         pass
 
-def mentions_gamma(text: str, gamma_hints: list[str]) -> bool:
-    if not text:
-        return False
-    t = text.lower()
-    return any(h in t for h in gamma_hints)
