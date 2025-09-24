@@ -17,8 +17,9 @@ def _is_elsevier_content_url(url: str | None) -> bool:
 
 def _elsevier_headers(accept: str) -> dict[str, str]:
     headers = {"Accept": accept}
-    if config.ELSEVIER_API_KEY:
-        headers["X-ELS-APIKey"] = config.ELSEVIER_API_KEY
+    api_key = config.ELSEVIER_DOWNLOAD_API_KEY or config.ELSEVIER_SEARCH_API_KEY
+    if api_key:
+        headers["X-ELS-APIKey"] = api_key
     return headers
 
 def append_line(path: Path, doi: str):

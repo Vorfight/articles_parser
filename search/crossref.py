@@ -9,6 +9,7 @@ def search_crossref(keywords: list[str], max_records=200):
     base = "https://api.crossref.org/works"
     rows = 100
     results = {}
+    download_key = config.ELSEVIER_DOWNLOAD_API_KEY or config.ELSEVIER_SEARCH_API_KEY
     pbar = tqdm(total=max_records * len(keywords), desc="Crossref search", unit="rec")
     for kw in keywords:
         cursor = "*"
@@ -28,8 +29,18 @@ def search_crossref(keywords: list[str], max_records=200):
                 if "abstract" in it and isinstance(it["abstract"], str):
                     abstr = BeautifulSoup(it["abstract"], "lxml").get_text(" ", strip=True)
 
-                pdf_url = f"https://api.elsevier.com/content/article/doi/{quote_plus(doi)}?httpAccept=application/pdf&apiKey={config.ELSEVIER_API_KEY}"
-                xml_url = f"https://api.elsevier.com/content/article/doi/{quote_plus(doi)}?httpAccept=application/xml&apiKey={config.ELSEVIER_API_KEY}"
+                pdf_url = None
+                xml_url = None
+                if download_key:
+                    doi_path = quote_plus(doi)
+                    pdf_url = (
+                        "https://api.elsevier.com/content/article/doi/"
+                        f"{doi_path}?httpAccept=application/pdf&apiKey={download_key}"
+                    )
+                    xml_url = (
+                        "https://api.elsevier.com/content/article/doi/"
+                        f"{doi_path}?httpAccept=application/xml&apiKey={download_key}"
+                    )
 
                 results[doi] = {
                     "source": "crossref",

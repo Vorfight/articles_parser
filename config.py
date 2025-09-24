@@ -38,4 +38,7 @@ def set_output_dir(path: str | Path) -> None:
 
 # Unpaywall
 UNPAYWALL_EMAIL = "vorfight@gmail.com"  # os.environ.get("UNPAYWALL_EMAIL", "").strip()
-ELSEVIER_API_KEY = "7f59af901d2d86f78a1fd60c1bf9426a"  # os.environ.get("ELSEVIER_API_KEY", "").strip()
+
+# Elsevier
+ELSEVIER_SEARCH_API_KEY = "7f59af901d2d86f78a1fd60c1bf9426a"  # os.environ.get("ELSEVIER_SEARCH_API_KEY", "").strip()
+ELSEVIER_DOWNLOAD_API_KEY = "7f59af901d2d86f78a1fd60c1bf9426a"  # os.environ.get("ELSEVIER_DOWNLOAD_API_KEY", "").strip()
