@@ -31,6 +31,15 @@ def _merge_sources(*dicts) -> dict[str, dict]:
     return db
 
 
+def _property_filter_label(kind: str | None) -> str:
+    mapping = {
+        "names": "Property names filter",
+        "units": "Property units filter",
+        "names_units": "Property names & units filter",
+    }
+    return mapping.get(kind, "Property filter")
+
+
 def run_pipeline(
     keywords: list[str],
     abstract_filter: bool = False,
@@ -94,41 +103,87 @@ def run_pipeline(
             abstract_available = bool(title) and bool(abstr)
 
             notes: list[str] = []
-            abstract_matched = not abstract_filter
-            pdf_ok = False
-            xml_ok = False
             names_found = False
             units_found = False
+            pdf_ok = False
+            xml_ok = False
 
+            report_lines = [
+                f"- DOI: {nd}",
+                f"  Source: {rec.get('source', '') or 'unknown'}",
+            ]
+
+            abstract_matched = True
+            abstract_status = None
             if abstract_filter:
-                if abstract_available and all(p.search(title + "\n" + abstr) for p in abstract_res):
-                    abstract_matched = True
+                combined_text = f"{title}\n{abstr}" if abstract_available else ""
+                if abstract_available and all(p.search(combined_text) for p in abstract_res):
+                    abstract_status = "patterns in abstract"
                 else:
+                    abstract_matched = False
+                    abstract_status = (
+                        "patterns not in abstract"
+                        if abstract_available
+                        else "patterns not in abstract (abstract unavailable)"
+                    )
                     notes.append("skip:abstract_filter")
-                    row = {
-                        "doi": nd,
-                        "title": title,
-                        "source": rec.get("source", ""),
-                        "keyword": kw,
-                        "abstract_available": abstract_available,
-                        "abstract_matched": False,
-                        "pdf_downloaded": False,
-                        "xml_downloaded": False,
-                        "names_found": False,
-                        "units_found": False,
-                        "notes": ",".join(notes),
-                    }
-                    append_inventory_row(row)
-                    seen.add(nd)
-                    continue
+                report_lines.append(f"  Abstract filter: {abstract_status}")
 
-            pdf_ok = try_download_pdf_with_validation(rec_id, title, rec.get("pdf_url"), oa_only=oa_only, libgen_domain=libgen_domain)
+            direct_status: str | None = None
+            libgen_status: str | None = None
+            property_message: str | None = None
+
+            if abstract_filter and not abstract_matched:
+                direct_status = (
+                    "not attempted (abstract filter not matched)"
+                    if rec.get("pdf_url")
+                    else "no direct link provided"
+                )
+                libgen_status = "not attempted (abstract filter not matched)"
+                if property_names_units_filter is not None:
+                    label = _property_filter_label(property_names_units_filter)
+                    property_message = f"{label}: patterns not in text (abstract filter not matched)"
+                row = {
+                    "doi": nd,
+                    "title": title,
+                    "source": rec.get("source", ""),
+                    "keyword": kw,
+                    "abstract_available": abstract_available,
+                    "abstract_matched": False,
+                    "pdf_downloaded": False,
+                    "xml_downloaded": False,
+                    "names_found": False,
+                    "units_found": False,
+                    "notes": ",".join(notes),
+                }
+                append_inventory_row(row)
+                seen.add(nd)
+                report_lines.append(f"  Direct download: {direct_status}")
+                report_lines.append(f"  Libgen download: {libgen_status}")
+                if property_message:
+                    report_lines.append(f"  Property filter: {property_message}")
+                print("\n".join(report_lines))
+                print()
+                continue
+
+            pdf_result = try_download_pdf_with_validation(
+                rec_id,
+                title,
+                rec.get("pdf_url"),
+                oa_only=oa_only,
+                libgen_domain=libgen_domain,
+            )
+            pdf_ok = pdf_result.success
+            direct_status = pdf_result.direct.message or "not attempted"
+            libgen_status = pdf_result.libgen.message or "not attempted"
+
             xml_ok = try_download_xml(rec_id, rec.get("xml_url"))
             if not pdf_ok and not xml_ok:
                 notes.append("download_failed")
 
-            full_text = ""
             if property_names_units_filter is not None:
+                label = _property_filter_label(property_names_units_filter)
+                full_text = ""
                 if pdf_ok:
                     pdf_path = config.PDF_DIR / f"{doi_to_fname(rec_id)}.pdf"
                     full_text += extract_text_from_pdf(pdf_path)
@@ -154,9 +209,21 @@ def run_pipeline(
                     (config.TEXT_DIR / f"{doi_to_fname(rec_id)}.txt").write_text(
                         full_text, encoding="utf-8", errors="ignore"
                     )
+                    property_message = (
+                        f"{label}: patterns in text"
+                        if filter_pass
+                        else f"{label}: patterns not in text"
+                    )
                     if not filter_pass:
                         notes.append("skip:fulltext_filter")
+                else:
+                    property_message = f"{label}: patterns not in text (no full text available)"
             # no extraction if property_names_units_filter is None
+
+            report_lines.append(f"  Direct download: {direct_status}")
+            report_lines.append(f"  Libgen download: {libgen_status}")
+            if property_message:
+                report_lines.append(f"  Property filter: {property_message}")
 
             row = {
                 "doi": nd,
@@ -173,5 +240,7 @@ def run_pipeline(
             }
             append_inventory_row(row)
             seen.add(nd)
+            print("\n".join(report_lines))
+            print()
     print(f"Done. Summary in {config.LOG_INVENTORY}")
 
