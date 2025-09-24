@@ -106,6 +106,7 @@ def download_via_libgen_stub(
             timeout=config.REQUESTS_TIMEOUT,
         )
         md5_req.raise_for_status()
+        print(md5_req.json())
         md5 = find_md5(md5_req.json())
         if not md5:
             return False, "LibGen lookup did not return md5"
@@ -181,7 +182,7 @@ def try_download_pdf_with_validation(
         result.libgen.message = "libgen download skipped (oa_only=True)"
     else:
         result.libgen.attempted = True
-        libgen_ok, libgen_error = download_via_libgen_stub(title, pdf_path, libgen_domain)
+        libgen_ok, libgen_error = download_via_libgen_stub(doi, pdf_path, libgen_domain)
         if libgen_ok:
             if is_valid_pdf(pdf_path):
                 append_line(config.LOG_PDF_DOI, doi)
