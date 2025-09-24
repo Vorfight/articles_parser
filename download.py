@@ -1,5 +1,7 @@
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin, parse_qs
+from bs4 import BeautifulSoup
+import requests
 
 import config
 from utils import safe_get, is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
@@ -39,11 +41,26 @@ def download_file(url, target_path: Path, headers: dict[str, str] | None = None)
     except Exception:
         return False
 
-def download_via_libgen_stub(doi: str, pdf_path: Path) -> bool:
+def find_md5(data: dict):
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if k == "md5":
+                return v
+            result = find_md5(v)
+            if result is not None:
+                return result
+    elif isinstance(data, list):
+        for item in data:
+            result = find_first_md5(item)
+            if result is not None:
+                return result
+    return None
+
+def download_via_libgen_stub(doi: str, pdf_path: Path, libgen_domain: str) -> bool:
     try:
-        md5_req = requests.get(f"https://libgen.bz/json.php?object=e&doi={doi}&fields=md5")
+        md5_req = requests.get(f"https://libgen.{libgen_domain}/json.php?object=e&doi={doi}&fields=md5")
         md5 = find_md5(md5_req.json())
-        mirror_url = f"http://libgen.bz/ads.php?md5={md5}&downloadname={doi}"
+        mirror_url = f"http://libgen.{libgen_domain}/ads.php?md5={md5}&downloadname={doi}"
 
         resp = requests.get(mirror_url)
         resp.raise_for_status()
@@ -71,7 +88,7 @@ def download_via_libgen_stub(doi: str, pdf_path: Path) -> bool:
     except Exception:
         return False
 
-def try_download_pdf_with_validation(doi: str, title: str, primary_url: str | None, oa_only: bool = False) -> bool:
+def try_download_pdf_with_validation(doi: str, title: str, primary_url: str | None, oa_only: bool = False, libgen_domain: str = "bz") -> bool:
     """Cascade: try primary_url, then LibGen (if allowed). Validate PDF signature after each attempt."""
     pdf_path = config.PDF_DIR / f"{doi_to_fname(doi)}.pdf"
 
@@ -85,7 +102,7 @@ def try_download_pdf_with_validation(doi: str, title: str, primary_url: str | No
 
     # 2) LibGen (if allowed)
     if not oa_only:
-        if download_via_libgen_stub(title, pdf_path) and is_valid_pdf(pdf_path):
+        if download_via_libgen_stub(title, pdf_path, libgen_domain) and is_valid_pdf(pdf_path):
             append_line(config.LOG_PDF_DOI, doi)
             return True
         delete_if_exists(pdf_path)

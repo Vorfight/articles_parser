@@ -42,6 +42,7 @@ def run_pipeline(
     max_per_source: int | None = None,
     output_directory: str | Path = "data",
     sources: list[str] | None = None,
+    libgen_domain: str | None = "bz"
 ):
     """Execute full pipeline of search, download and filtering."""
 
@@ -121,7 +122,7 @@ def run_pipeline(
                     seen.add(nd)
                     continue
 
-            pdf_ok = try_download_pdf_with_validation(rec_id, title, rec.get("pdf_url"), oa_only=oa_only)
+            pdf_ok = try_download_pdf_with_validation(rec_id, title, rec.get("pdf_url"), oa_only=oa_only, libgen_domain=libgen_domain)
             xml_ok = try_download_xml(rec_id, rec.get("xml_url"))
             if not pdf_ok and not xml_ok:
                 notes.append("download_failed")

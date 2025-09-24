@@ -41,4 +41,4 @@ UNPAYWALL_EMAIL = "vorfight@gmail.com"  # os.environ.get("UNPAYWALL_EMAIL", "").
 
 # Elsevier
 ELSEVIER_SEARCH_API_KEY = "7f59af901d2d86f78a1fd60c1bf9426a"  # os.environ.get("ELSEVIER_SEARCH_API_KEY", "").strip()
-ELSEVIER_DOWNLOAD_API_KEY = "7f59af901d2d86f78a1fd60c1bf9426a"  # os.environ.get("ELSEVIER_DOWNLOAD_API_KEY", "").strip()
+ELSEVIER_DOWNLOAD_API_KEY = "6703ac4f1769f8495834a1e3769adbab"  # os.environ.get("ELSEVIER_DOWNLOAD_API_KEY", "").strip()
