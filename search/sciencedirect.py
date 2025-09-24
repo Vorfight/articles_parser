@@ -40,11 +40,12 @@ def search_sciencedirect(keywords: list[str], max_records=200, progress_cb=None)
       - PDF URL is built via Content API (OA articles)
     """
     results = {}
-    if not config.ELSEVIER_API_KEY:
+    if not config.ELSEVIER_SEARCH_API_KEY:
         return results
 
     base = "https://api.elsevier.com/content/search/sciencedirect"
     count = 25
+    download_key = config.ELSEVIER_DOWNLOAD_API_KEY or config.ELSEVIER_SEARCH_API_KEY
     pbar = tqdm(total=max_records * len(keywords), desc="ScienceDirect search", unit="rec")
     for kw in keywords:
         query = f'"{kw}"'
@@ -55,7 +56,7 @@ def search_sciencedirect(keywords: list[str], max_records=200, progress_cb=None)
                 "query": query,
                 "count": count,
                 "start": start,
-                "apiKey": config.ELSEVIER_API_KEY,
+                "apiKey": config.ELSEVIER_SEARCH_API_KEY,
                 'httpAccept': 'application/json',
             }
 
@@ -80,8 +81,18 @@ def search_sciencedirect(keywords: list[str], max_records=200, progress_cb=None)
                 title = it.get("dc:title") or ""
                 abstract = it.get("dc:description") or ""
 
-                pdf_url = f"https://api.elsevier.com/content/article/doi/{quote_plus(doi)}?httpAccept=application/pdf&apiKey={config.ELSEVIER_API_KEY}"
-                xml_url = f"https://api.elsevier.com/content/article/doi/{quote_plus(doi)}?httpAccept=application/xml&apiKey={config.ELSEVIER_API_KEY}"
+                pdf_url = None
+                xml_url = None
+                if download_key:
+                    doi_path = quote_plus(doi)
+                    pdf_url = (
+                        "https://api.elsevier.com/content/article/doi/"
+                        f"{doi_path}?httpAccept=application/pdf&apiKey={download_key}"
+                    )
+                    xml_url = (
+                        "https://api.elsevier.com/content/article/doi/"
+                        f"{doi_path}?httpAccept=application/xml&apiKey={download_key}"
+                    )
 
                 results[doi] = {
                     "source": "sciencedirect",
