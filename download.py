@@ -106,7 +106,6 @@ def download_via_libgen_stub(
             timeout=config.REQUESTS_TIMEOUT,
         )
         md5_req.raise_for_status()
-        print(md5_req.json())
         md5 = find_md5(md5_req.json())
         if not md5:
             return False, "LibGen lookup did not return md5"
