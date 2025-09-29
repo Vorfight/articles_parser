@@ -89,12 +89,12 @@ def run_pipeline(
 
     for kw in keywords:
         if verbose:
-            print(f"\n=== Keyword: {kw} ===")
+            print(f"\n=== Keyword: {kw} ===", flush=True)
         config.set_keywords([kw])
         searches = [src_funcs[s]([kw], max_records) for s in selected]
         db = _merge_sources(*searches)
         if verbose:
-            print(f"Total unique records for '{kw}': {len(db)}")
+            print(f"Total unique records for '{kw}': {len(db)}", flush=True)
 
         for rec_id, rec in db.items():
             nd = norm_doi(rec_id) or rec_id
@@ -166,8 +166,8 @@ def run_pipeline(
                     report_lines.append(f"  Libgen download: {libgen_status}")
                     if property_message:
                         report_lines.append(f"  Property filter: {property_message}")
-                    print("\n".join(report_lines))
-                    print()
+                    print("\n".join(report_lines), flush=True)
+                    print(flush=True)
                 continue
 
             pdf_result = try_download_pdf_with_validation(
@@ -246,8 +246,8 @@ def run_pipeline(
             append_inventory_row(row)
             seen.add(nd)
             if verbose:
-                print("\n".join(report_lines))
-                print()
+                print("\n".join(report_lines), flush=True)
+                print(flush=True)
     if verbose:
-        print(f"Done. Summary in {config.LOG_INVENTORY}")
+        print(f"Done. Summary in {config.LOG_INVENTORY}", flush=True)
 
