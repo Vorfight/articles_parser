@@ -25,6 +25,19 @@ def main(argv=None):
         default=[],
         help="list of sources to search (e.g. OpenAlex Sciencedirect)",
     )
+    parser.add_argument(
+        "--verbose",
+        dest="verbose",
+        action="store_true",
+        default=True,
+        help="enable detailed per-article output",
+    )
+    parser.add_argument(
+        "--no-verbose",
+        dest="verbose",
+        action="store_false",
+        help="disable detailed per-article output",
+    )
     args = parser.parse_args(argv)
 
     run_pipeline(
@@ -38,6 +51,7 @@ def main(argv=None):
         max_per_source=args.max_per_source,
         output_directory=args.output_dir,
         sources=args.sources or None,
+        verbose=args.verbose,
     )
 
 

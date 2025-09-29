@@ -35,6 +35,8 @@ python cli.py --keywords "oil viscosity" "petrol viscosity" \
     --sources OpenAlex Sciencedirect
 ```
 
+Add `--no-verbose` to hide detailed per-article output and only keep the search progress bars.
+
 Parameters can be combined as needed. The package can also be used as a library:
 
 ```python
@@ -50,6 +52,7 @@ run_pipeline(
     max_per_source=50,
     output_directory="./output",
     sources=["OpenAlex", "Sciencedirect"],
+    verbose=True,
 )
 ```
 
