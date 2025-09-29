@@ -51,7 +51,7 @@ def safe_request_json(url, params=None, headers=None):
         r.raise_for_status()
         return r.json()
     except Exception as e:
-        print(e)
+        print(e, flush=True)
         return None
 
 def safe_get(url, stream=False, headers=None, params=None):
