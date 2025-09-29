@@ -51,7 +51,8 @@ def run_pipeline(
     max_per_source: int | None = None,
     output_directory: str | Path = "data",
     sources: list[str] | None = None,
-    libgen_domain: str | None = "bz"
+    libgen_domain: str | None = "bz",
+    verbose: bool = True,
 ):
     """Execute full pipeline of search, download and filtering."""
 
@@ -87,11 +88,13 @@ def run_pipeline(
     )
 
     for kw in keywords:
-        print(f"\n=== Keyword: {kw} ===")
+        if verbose:
+            print(f"\n=== Keyword: {kw} ===")
         config.set_keywords([kw])
         searches = [src_funcs[s]([kw], max_records) for s in selected]
         db = _merge_sources(*searches)
-        print(f"Total unique records for '{kw}': {len(db)}")
+        if verbose:
+            print(f"Total unique records for '{kw}': {len(db)}")
 
         for rec_id, rec in db.items():
             nd = norm_doi(rec_id) or rec_id
@@ -158,12 +161,13 @@ def run_pipeline(
                 }
                 append_inventory_row(row)
                 seen.add(nd)
-                report_lines.append(f"  Direct download: {direct_status}")
-                report_lines.append(f"  Libgen download: {libgen_status}")
-                if property_message:
-                    report_lines.append(f"  Property filter: {property_message}")
-                print("\n".join(report_lines))
-                print()
+                if verbose:
+                    report_lines.append(f"  Direct download: {direct_status}")
+                    report_lines.append(f"  Libgen download: {libgen_status}")
+                    if property_message:
+                        report_lines.append(f"  Property filter: {property_message}")
+                    print("\n".join(report_lines))
+                    print()
                 continue
 
             pdf_result = try_download_pdf_with_validation(
@@ -220,10 +224,11 @@ def run_pipeline(
                     property_message = f"{label}: patterns not in text (no full text available)"
             # no extraction if property_names_units_filter is None
 
-            report_lines.append(f"  Direct download: {direct_status}")
-            report_lines.append(f"  Libgen download: {libgen_status}")
-            if property_message:
-                report_lines.append(f"  Property filter: {property_message}")
+            if verbose:
+                report_lines.append(f"  Direct download: {direct_status}")
+                report_lines.append(f"  Libgen download: {libgen_status}")
+                if property_message:
+                    report_lines.append(f"  Property filter: {property_message}")
 
             row = {
                 "doi": nd,
@@ -240,7 +245,9 @@ def run_pipeline(
             }
             append_inventory_row(row)
             seen.add(nd)
-            print("\n".join(report_lines))
-            print()
-    print(f"Done. Summary in {config.LOG_INVENTORY}")
+            if verbose:
+                print("\n".join(report_lines))
+                print()
+    if verbose:
+        print(f"Done. Summary in {config.LOG_INVENTORY}")
 
