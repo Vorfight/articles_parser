@@ -117,7 +117,7 @@ def run_pipeline(
             abstract_status = None
             if abstract_filter:
                 combined_text = f"{title}\n{abstr}" if abstract_available else ""
-                if abstract_available and all(p.search(combined_text) for p in abstract_res):
+                if abstract_available and any(p.search(combined_text) for p in abstract_res):
                     abstract_status = "patterns in abstract"
                 else:
                     abstract_matched = False
