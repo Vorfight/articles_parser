@@ -16,7 +16,9 @@ from search import (
 from download import try_download_pdf_with_validation, try_download_xml
 from extract import extract_text_from_pdf, extract_text_from_xml, extract_tables_text
 from inventory import load_seen_inventory, ensure_inventory_file, append_inventory_row
-
+import logging
+for name in ["pdfminer", "camelot", "tabula"]:
+    logging.getLogger(name).setLevel(logging.ERROR)
 
 def _merge_sources(*dicts) -> dict[str, dict]:
     db: dict[str, dict] = {}
@@ -88,11 +90,13 @@ def run_pipeline(
     )
 
     for kw in keywords:
-        print(f"\n=== Keyword: {kw} ===", flush=True)
+        if verbose:
+            print(f"\n=== Keyword: {kw} ===", flush=True)
         config.set_keywords([kw])
         searches = [src_funcs[s]([kw], max_records) for s in selected]
         db = _merge_sources(*searches)
-        print(f"Total unique records for '{kw}': {len(db)}", flush=True)
+        if verbose:
+            print(f"Total unique records for '{kw}': {len(db)}", flush=True)
 
         for rec_id, rec in db.items():
             nd = norm_doi(rec_id) or rec_id
@@ -257,5 +261,5 @@ def run_pipeline(
             if verbose:
                 print("\n".join(report_lines), flush=True)
                 print(flush=True)
-    print(f"Done. Summary in {config.LOG_INVENTORY}", flush=True)
-
+    if verbose:
+        print(f"Done. Summary in {config.LOG_INVENTORY}", flush=True)
