@@ -42,8 +42,47 @@ def _property_filter_label(kind: str | None) -> str:
     return mapping.get(kind, "Property filter")
 
 
+def _extract_abstract_from_text(full_text: str) -> str:
+    """Best-effort extraction of abstract section from article text."""
+
+    if not full_text:
+        return ""
+
+    normalized = full_text.replace("\r\n", "\n")
+    match = re.search(r"\babstract\b[:\s]*", normalized, re.IGNORECASE)
+    if not match:
+        return ""
+
+    remainder = normalized[match.end() :].lstrip(" \t:-\n")
+    if not remainder:
+        return ""
+
+    # Split by first empty line which commonly separates abstract from next section.
+    parts = re.split(r"\n\s*\n", remainder, maxsplit=1)
+    abstract_block = parts[0]
+
+    # Stop before common section headings if they accidentally land in the same block.
+    stop_match = re.search(
+        r"\b(?:keywords?|index\s+terms?|introduction|background|materials?\s+and\s+methods)\b",
+        abstract_block,
+        re.IGNORECASE,
+    )
+    if stop_match:
+        abstract_block = abstract_block[: stop_match.start()]
+
+    return normalize_spaces(abstract_block.strip())
+
+
+def _format_check_result(value: bool | str | None) -> str:
+    if isinstance(value, str):
+        return value
+    if value is None:
+        return "not requested"
+    return "passed" if value else "failed"
+
+
 def run_pipeline(
-    keywords: list[str],
+    keywords: list[str] | None = None,
     abstract_filter: bool = False,
     abstract_patterns: list[str] | None = None,
     property_names_units_filter: str | None = None,
@@ -55,8 +94,87 @@ def run_pipeline(
     sources: list[str] | None = None,
     libgen_domain: str | None = "bz",
     verbose: bool = True,
+    pdf_path: str | Path | None = None,
+    inventory: bool = False,
 ):
     """Execute full pipeline of search, download and filtering."""
+
+    keywords = keywords or []
+    abstract_res = [re.compile(p, re.IGNORECASE) for p in (abstract_patterns or [])]
+    names_re = (
+        re.compile("|".join(map(re.escape, property_names)), re.IGNORECASE)
+        if property_names
+        else None
+    )
+    units_re = (
+        re.compile("|".join(map(re.escape, property_units)), re.IGNORECASE)
+        if property_units
+        else None
+    )
+
+    if pdf_path is not None:
+        pdf_path = Path(pdf_path)
+        if not pdf_path.exists():
+            raise FileNotFoundError(f"PDF file not found: {pdf_path}")
+
+        full_text = extract_text_from_pdf(pdf_path)
+        abstract_text = _extract_abstract_from_text(full_text)
+        should_check_abstract = abstract_filter
+        abstract_passed = True
+        if should_check_abstract:
+            if abstract_text and any(p.search(abstract_text) for p in abstract_res):
+                abstract_passed = True
+            else:
+                abstract_passed = False
+
+        requested_names = property_names_units_filter in {"names", "names_units"}
+        requested_units = property_names_units_filter in {"units", "names_units"}
+
+        names_status: bool | str | None = None
+        units_status: bool | str | None = None
+
+        if property_names_units_filter is not None:
+            if should_check_abstract and not abstract_passed:
+                if requested_names:
+                    names_status = "skipped (abstract failed)"
+                if requested_units:
+                    units_status = "skipped (abstract failed)"
+            else:
+                if full_text:
+                    if requested_names:
+                        if names_re is not None:
+                            names_status = bool(names_re.search(full_text))
+                        else:
+                            names_status = False
+                    if requested_units:
+                        if units_re is not None:
+                            units_status = bool(units_re.search(full_text))
+                        else:
+                            units_status = False
+                else:
+                    if requested_names:
+                        names_status = False
+                    if requested_units:
+                        units_status = False
+
+        summary_lines = [
+            f"File: {pdf_path.name}",
+            f"Abstract check: {('passed' if abstract_passed else 'failed') if should_check_abstract else 'not requested'}",
+        ]
+
+        summary_lines.append(f"Names check: {_format_check_result(names_status)}")
+        summary_lines.append(f"Units check: {_format_check_result(units_status)}")
+
+        output_text = "\n".join(summary_lines)
+
+        if inventory:
+            inventory_path = pdf_path.parent / "inventory"
+            with inventory_path.open("a", encoding="utf-8") as f:
+                f.write(output_text + "\n\n")
+        else:
+            print(output_text, flush=True)
+
+        return
 
     # Configure paths and inventory
     config.set_output_dir(output_directory)
@@ -77,17 +195,8 @@ def run_pipeline(
 
     seen = load_seen_inventory()
 
-    abstract_res = [re.compile(p, re.IGNORECASE) for p in (abstract_patterns or [])]
-    names_re = (
-        re.compile("|".join(map(re.escape, property_names)), re.IGNORECASE)
-        if property_names
-        else None
-    )
-    units_re = (
-        re.compile("|".join(map(re.escape, property_units)), re.IGNORECASE)
-        if property_units
-        else None
-    )
+    if not keywords:
+        raise ValueError("'keywords' must be provided when pdf_path is not set")
 
     for kw in keywords:
         if verbose:
