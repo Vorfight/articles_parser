@@ -376,4 +376,4 @@ def run_local(
     else:
         print(output_text, flush=True)
 
-    return output_text
+    return
