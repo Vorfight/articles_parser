@@ -32,10 +32,12 @@ python cli.py --keywords "oil viscosity" "petrol viscosity" \
     --abstract-filter --abstract-patterns temperature \
     --property-filter names --property-names "kinematic viscosity" "dynamic viscosity" \
     --oa-only --max-per-source 50 --output-dir ./output \
+    --save-text \
     --sources OpenAlex Sciencedirect
 ```
 
 Add `--no-verbose` to hide detailed per-article output and only keep the search progress bars.
+Use `--no-save-text` to skip storing extracted `.txt` files alongside downloaded articles.
 
 Parameters can be combined as needed. The package can also be used as a library:
 
@@ -53,6 +55,22 @@ run_pipeline(
     output_directory="./output",
     sources=["OpenAlex", "Sciencedirect"],
     verbose=True,
+    save_text=True,
+)
+```
+
+To validate a locally stored PDF without running the full search pipeline:
+
+```python
+from pipeline import run_local
+
+run_local(
+    pdf_path="/path/to/article.pdf",
+    property_names_units_filter="names_units",
+    property_names=["kinematic viscosity", "dynamic viscosity"],
+    property_units=["mm^2/s", "Pa·s"],
+    inventory=False,
+    save_text=True,
 )
 ```
 
