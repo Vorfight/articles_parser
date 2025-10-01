@@ -188,6 +188,7 @@ def run_pipeline(
             if property_names_units_filter is not None:
                 label = _property_filter_label(property_names_units_filter)
                 full_text = ""
+                text_path = config.TEXT_DIR / f"{doi_to_fname(rec_id)}.txt"
                 if pdf_ok:
                     pdf_path = config.PDF_DIR / f"{doi_to_fname(rec_id)}.pdf"
                     full_text += extract_text_from_pdf(pdf_path)
@@ -210,9 +211,7 @@ def run_pipeline(
                         filter_pass = names_found and units_found
                     else:
                         filter_pass = True
-                    (config.TEXT_DIR / f"{doi_to_fname(rec_id)}.txt").write_text(
-                        full_text, encoding="utf-8", errors="ignore"
-                    )
+                    text_path.write_text(full_text, encoding="utf-8", errors="ignore")
                     property_message = (
                         f"{label}: patterns in text"
                         if filter_pass
@@ -220,6 +219,18 @@ def run_pipeline(
                     )
                     if not filter_pass:
                         notes.append("skip:fulltext_filter")
+                        property_message = f"{label}: patterns not in text (article removed)"
+                        for path in [
+                            config.PDF_DIR / f"{doi_to_fname(rec_id)}.pdf",
+                            config.XML_DIR / f"{doi_to_fname(rec_id)}.xml",
+                            text_path,
+                        ]:
+                            try:
+                                path.unlink()
+                            except FileNotFoundError:
+                                pass
+                        pdf_ok = False
+                        xml_ok = False
                 else:
                     property_message = f"{label}: patterns not in text (no full text available)"
             # no extraction if property_names_units_filter is None
