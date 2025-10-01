@@ -38,6 +38,19 @@ def main(argv=None):
         action="store_false",
         help="disable detailed per-article output",
     )
+    parser.add_argument(
+        "--save-text",
+        dest="save_text",
+        action="store_true",
+        default=True,
+        help="store extracted text files for downloaded articles",
+    )
+    parser.add_argument(
+        "--no-save-text",
+        dest="save_text",
+        action="store_false",
+        help="do not store extracted text files for downloaded articles",
+    )
     args = parser.parse_args(argv)
 
     run_pipeline(
@@ -52,6 +65,7 @@ def main(argv=None):
         output_directory=args.output_dir,
         sources=args.sources or None,
         verbose=args.verbose,
+        save_text=args.save_text,
     )
 
 
