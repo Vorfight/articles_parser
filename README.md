@@ -8,7 +8,7 @@ Articles Parser automates the collection and processing of scientific publicatio
 2. Initial filtering: titles and abstracts are filtered with regular expressions.
 3. Download: full texts are downloaded.
 4. Text extraction: text is extracted from the downloaded files.
-5. Secondary filtering: full text is filtered for target properties and their units using regular expressions.
+5. Secondary filtering: full text is filtered with user-provided regular expressions.
 
 ## Usage
 
@@ -29,8 +29,8 @@ pip install -r requirements.txt
 
 ```bash
 python cli.py --keywords "oil viscosity" "petrol viscosity" \
-    --abstract-filter --abstract-patterns temperature \
-    --property-filter names --property-names "kinematic viscosity" "dynamic viscosity" \
+    --abstract-filter --abstract-regex temperature \
+    --fulltext-filter --fulltext-regex "kinematic viscosity" "dynamic viscosity" \
     --oa-only --max-per-source 50 --output-dir ./output \
     --save-text \
     --sources OpenAlex Sciencedirect
@@ -47,9 +47,9 @@ from pipeline import run_pipeline
 run_pipeline(
     keywords=["oil viscosity", "petrol viscosity"],
     abstract_filter=True,
-    abstract_patterns=["temperature"],
-    property_names_units_filter="names",
-    property_names=["kinematic viscosity", "dynamic viscosity"],
+    abstract_regex=["temperature"],
+    fulltext_filter=True,
+    fulltext_regex=["kinematic viscosity", "dynamic viscosity"],
     oa_only=True,
     max_per_source=50,
     output_directory="./output",
@@ -66,9 +66,8 @@ from pipeline import run_local
 
 run_local(
     pdf_path="/path/to/article.pdf",
-    property_names_units_filter="names_units",
-    property_names=["kinematic viscosity", "dynamic viscosity"],
-    property_units=["mm^2/s", "Pa·s"],
+    fulltext_filter=True,
+    fulltext_regex=["kinematic viscosity", "mm^2/s"],
     inventory=False,
     save_text=True,
 )

@@ -31,15 +31,6 @@ def _merge_sources(*dicts) -> dict[str, dict]:
     return db
 
 
-def _property_filter_label(kind: str | None) -> str:
-    mapping = {
-        "names": "Property names filter",
-        "units": "Property units filter",
-        "names_units": "Property names & units filter",
-    }
-    return mapping.get(kind, "Property filter")
-
-
 def _extract_abstract_from_text(full_text: str) -> str:
     """Best-effort extraction of abstract section from article text."""
 
@@ -82,10 +73,9 @@ def _format_check_result(value: bool | str | None) -> str:
 def run_pipeline(
     keywords: list[str],
     abstract_filter: bool = False,
-    abstract_patterns: list[str] | None = None,
-    property_names_units_filter: str | None = None,
-    property_names: list[str] | None = None,
-    property_units: list[str] | None = None,
+    abstract_regex: list[str] | None = None,
+    fulltext_filter: bool = False,
+    fulltext_regex: list[str] | None = None,
     oa_only: bool = False,
     max_per_source: int | None = None,
     output_directory: str | Path = "data",
@@ -99,17 +89,8 @@ def run_pipeline(
     if not keywords:
         raise ValueError("'keywords' must not be empty")
 
-    abstract_res = [re.compile(p) for p in (abstract_patterns or [])]
-    names_re = (
-        re.compile("|".join(property_names))
-        if property_names
-        else None
-    )
-    units_re = (
-        re.compile("|".join(property_units))
-        if property_units
-        else None
-    )
+    abstract_res = [re.compile(p) for p in (abstract_regex or [])]
+    fulltext_res = [re.compile(p) for p in (fulltext_regex or [])] if fulltext_filter else []
 
     # Configure paths and inventory
     config.set_output_dir(output_directory)
@@ -149,8 +130,7 @@ def run_pipeline(
             abstract_available = bool(title) and bool(abstr)
 
             notes: list[str] = []
-            names_found = False
-            units_found = False
+            fulltext_matched = None
             pdf_ok = False
             xml_ok = False
 
@@ -177,7 +157,7 @@ def run_pipeline(
 
             direct_status: str | None = None
             libgen_status: str | None = None
-            property_message: str | None = None
+            fulltext_message: str | None = None
 
             if abstract_filter and not abstract_matched:
                 direct_status = (
@@ -186,9 +166,8 @@ def run_pipeline(
                     else "no direct link provided"
                 )
                 libgen_status = "not attempted (abstract filter not matched)"
-                if property_names_units_filter is not None:
-                    label = _property_filter_label(property_names_units_filter)
-                    property_message = f"{label}: patterns not in text (abstract filter not matched)"
+                if fulltext_filter:
+                    fulltext_message = "Fulltext filter: not run (abstract filter not matched)"
                 row = {
                     "doi": nd,
                     "title": title,
@@ -198,8 +177,7 @@ def run_pipeline(
                     "abstract_matched": False,
                     "pdf_downloaded": False,
                     "xml_downloaded": False,
-                    "names_found": False,
-                    "units_found": False,
+                    "fulltext_matched": False if fulltext_filter else None,
                     "notes": ",".join(notes),
                 }
                 append_inventory_row(row)
@@ -207,8 +185,8 @@ def run_pipeline(
                 if verbose:
                     report_lines.append(f"  Direct download: {direct_status}")
                     report_lines.append(f"  Libgen download: {libgen_status}")
-                    if property_message:
-                        report_lines.append(f"  Property filter: {property_message}")
+                    if fulltext_message:
+                        report_lines.append(f"  Fulltext filter: {fulltext_message}")
                     print("\n".join(report_lines), flush=True)
                     print(flush=True)
                 continue
@@ -228,8 +206,7 @@ def run_pipeline(
             if not pdf_ok and not xml_ok:
                 notes.append("download_failed")
 
-            if property_names_units_filter is not None:
-                label = _property_filter_label(property_names_units_filter)
+            if fulltext_filter:
                 full_text = ""
                 text_path = config.TEXT_DIR / f"{doi_to_fname(rec_id)}.txt"
                 if pdf_ok:
@@ -244,26 +221,22 @@ def run_pipeline(
 
                 full_text = normalize_spaces(full_text.strip())
                 if full_text:
-                    names_found = bool(names_re.search(full_text)) if names_re else False
-                    units_found = bool(units_re.search(full_text)) if units_re else False
-                    if property_names_units_filter == "names":
-                        filter_pass = names_found
-                    elif property_names_units_filter == "units":
-                        filter_pass = units_found
-                    elif property_names_units_filter == "names_units":
-                        filter_pass = names_found and units_found
+                    if fulltext_res:
+                        filter_pass = all(bool(p.search(full_text)) for p in fulltext_res)
                     else:
                         filter_pass = True
                     if save_text:
                         text_path.write_text(full_text, encoding="utf-8", errors="ignore")
-                    property_message = (
-                        f"{label}: patterns in text"
-                        if filter_pass
-                        else f"{label}: patterns not in text"
-                    )
-                    if not filter_pass:
+                    if filter_pass:
+                        fulltext_matched = True
+                        if fulltext_res:
+                            fulltext_message = "Fulltext filter: patterns matched in text"
+                        else:
+                            fulltext_message = "Fulltext filter: no patterns provided"
+                    else:
+                        fulltext_matched = False
                         notes.append("skip:fulltext_filter")
-                        property_message = f"{label}: patterns not in text (article removed)"
+                        fulltext_message = "Fulltext filter: patterns not in text (article removed)"
                         for path in [
                             config.PDF_DIR / f"{doi_to_fname(rec_id)}.pdf",
                             config.XML_DIR / f"{doi_to_fname(rec_id)}.xml",
@@ -280,14 +253,15 @@ def run_pipeline(
                         pdf_ok = False
                         xml_ok = False
                 else:
-                    property_message = f"{label}: patterns not in text (no full text available)"
-            # no extraction if property_names_units_filter is None
+                    fulltext_matched = False
+                    fulltext_message = "Fulltext filter: patterns not in text (no full text available)"
+            # no extraction if fulltext_filter is False
 
             if verbose:
                 report_lines.append(f"  Direct download: {direct_status}")
                 report_lines.append(f"  Libgen download: {libgen_status}")
-                if property_message:
-                    report_lines.append(f"  Property filter: {property_message}")
+                if fulltext_message:
+                    report_lines.append(f"  Fulltext filter: {fulltext_message}")
 
             row = {
                 "doi": nd,
@@ -298,8 +272,7 @@ def run_pipeline(
                 "abstract_matched": abstract_matched,
                 "pdf_downloaded": pdf_ok,
                 "xml_downloaded": xml_ok,
-                "names_found": names_found,
-                "units_found": units_found,
+                "fulltext_matched": fulltext_matched,
                 "notes": ",".join(notes) if notes else "",
             }
             append_inventory_row(row)
@@ -313,28 +286,18 @@ def run_pipeline(
 
 def run_local(
     pdf_path: str | Path,
-    property_names_units_filter: str | None = None,
-    property_names: list[str] | None = None,
-    property_units: list[str] | None = None,
+    fulltext_filter: bool = False,
+    fulltext_regex: list[str] | None = None,
     inventory: bool = False,
     save_text: bool = True,
-) -> str:
-    """Run property checks for a locally available PDF file."""
+) -> dict[str, str]:
+    """Run full text regex checks for a locally available PDF file."""
 
     pdf_path = Path(pdf_path)
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
-    names_re = (
-        re.compile("|".join(property_names))
-        if property_names
-        else None
-    )
-    units_re = (
-        re.compile("|".join(property_units))
-        if property_units
-        else None
-    )
+    fulltext_res = [re.compile(p) for p in (fulltext_regex or [])] if fulltext_filter else []
 
     full_text = extract_text_from_pdf(pdf_path)
     tables_text = extract_tables_text(pdf_path)
@@ -342,28 +305,19 @@ def run_local(
         full_text += "\n\n" + tables_text
     full_text = normalize_spaces(full_text.strip())
 
-    requested_names = property_names_units_filter in {"names", "names_units"}
-    requested_units = property_names_units_filter in {"units", "names_units"}
+    fulltext_status: bool | str | None = None
 
-    names_status: bool | str | None = None
-    units_status: bool | str | None = None
-
-    if property_names_units_filter is not None:
+    if fulltext_filter:
         if full_text:
-            if requested_names:
-                names_status = bool(names_re.search(full_text)) if names_re else False
-            if requested_units:
-                units_status = bool(units_re.search(full_text)) if units_re else False
+            if fulltext_res:
+                fulltext_status = all(bool(p.search(full_text)) for p in fulltext_res)
+            else:
+                fulltext_status = True
         else:
-            if requested_names:
-                names_status = False
-            if requested_units:
-                units_status = False
-    names_result = _format_check_result(names_status)
-    units_result = _format_check_result(units_status)
+            fulltext_status = False
+    fulltext_result = _format_check_result(fulltext_status)
     summary_lines = [f"File: {pdf_path.name}"]
-    summary_lines.append(f"Names check: {names_result}")
-    summary_lines.append(f"Units check: {units_result}")
+    summary_lines.append(f"Fulltext check: {fulltext_result}")
     output_text = "\n".join(summary_lines)
 
     if save_text and full_text:
@@ -377,4 +331,4 @@ def run_local(
     else:
         print(output_text, flush=True)
 
-    return {'names': names_result, 'units': units_result}
+    return {"fulltext": fulltext_result}
