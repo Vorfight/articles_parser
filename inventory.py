@@ -8,7 +8,7 @@ COLUMNS = [
     "doi", "title", "source", "keyword",
     "abstract_available", "abstract_matched",
     "pdf_downloaded", "xml_downloaded",
-    "names_found", "units_found",
+    "fulltext_matched",
     "notes",
 ]
 

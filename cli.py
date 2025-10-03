@@ -7,15 +7,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Universal articles parser")
     parser.add_argument("--keywords", nargs="+", required=True, help="search keywords")
     parser.add_argument("--abstract-filter", action="store_true", help="enable abstract filtering")
-    parser.add_argument("--abstract-patterns", nargs="*", default=[], help="patterns that must appear in abstract")
+    parser.add_argument("--abstract-regex", nargs="*", default=[], help="regular expressions that must appear in abstract")
+    parser.add_argument("--fulltext-filter", action="store_true", help="enable full text regex filtering")
     parser.add_argument(
-        "--property-filter",
-        choices=["names", "units", "names_units"],
-        default=None,
-        help="filter full texts by property names/units",
+        "--fulltext-regex",
+        nargs="*",
+        default=[],
+        help="regular expressions that must appear in full text",
     )
-    parser.add_argument("--property-names", nargs="*", default=[], help="property name synonyms")
-    parser.add_argument("--property-units", nargs="*", default=[], help="property units")
     parser.add_argument("--oa-only", action="store_true", help="only download open access articles")
     parser.add_argument("--max-per-source", type=int, default=None, help="limit of records per source")
     parser.add_argument("--output-dir", default="data", help="directory for output data")
@@ -56,10 +55,9 @@ def main(argv=None):
     run_pipeline(
         keywords=args.keywords,
         abstract_filter=args.abstract_filter,
-        abstract_patterns=args.abstract_patterns,
-        property_names_units_filter=args.property_filter,
-        property_names=args.property_names,
-        property_units=args.property_units,
+        abstract_regex=args.abstract_regex,
+        fulltext_filter=args.fulltext_filter,
+        fulltext_regex=args.fulltext_regex,
         oa_only=args.oa_only,
         max_per_source=args.max_per_source,
         output_directory=args.output_dir,
