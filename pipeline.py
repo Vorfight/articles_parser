@@ -99,14 +99,14 @@ def run_pipeline(
     if not keywords:
         raise ValueError("'keywords' must not be empty")
 
-    abstract_res = [re.compile(p, re.IGNORECASE) for p in (abstract_patterns or [])]
+    abstract_res = [re.compile(p) for p in (abstract_patterns or [])]
     names_re = (
-        re.compile("|".join(map(re.escape, property_names)), re.IGNORECASE)
+        re.compile("|".join(property_names))
         if property_names
         else None
     )
     units_re = (
-        re.compile("|".join(map(re.escape, property_units)), re.IGNORECASE)
+        re.compile("|".join(property_units))
         if property_units
         else None
     )
@@ -326,12 +326,12 @@ def run_local(
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
     names_re = (
-        re.compile("|".join(map(re.escape, property_names)), re.IGNORECASE)
+        re.compile("|".join(property_names))
         if property_names
         else None
     )
     units_re = (
-        re.compile("|".join(map(re.escape, property_units)), re.IGNORECASE)
+        re.compile("|".join(property_units))
         if property_units
         else None
     )
@@ -359,10 +359,11 @@ def run_local(
                 names_status = False
             if requested_units:
                 units_status = False
-
+    names_result = _format_check_result(names_status)
+    units_result = _format_check_result(units_status)
     summary_lines = [f"File: {pdf_path.name}"]
-    summary_lines.append(f"Names check: {_format_check_result(names_status)}")
-    summary_lines.append(f"Units check: {_format_check_result(units_status)}")
+    summary_lines.append(f"Names check: {names_result}")
+    summary_lines.append(f"Units check: {units_result}")
     output_text = "\n".join(summary_lines)
 
     if save_text and full_text:
@@ -376,4 +377,4 @@ def run_local(
     else:
         print(output_text, flush=True)
 
-    return
+    return {'names': names_result, 'units': units_result}
