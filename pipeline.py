@@ -112,13 +112,11 @@ def run_pipeline(
     seen = load_seen_inventory()
 
     for kw in keywords:
-        if verbose:
-            print(f"\n=== Keyword: {kw} ===", flush=True)
+        print(f"\n=== Keyword: {kw} ===", flush=True)
         config.set_keywords([kw])
         searches = [src_funcs[s]([kw], max_records) for s in selected]
         db = _merge_sources(*searches)
-        if verbose:
-            print(f"Total unique records for '{kw}': {len(db)}", flush=True)
+        print(f"Total unique records for '{kw}': {len(db)}", flush=True)
 
         for rec_id, rec in db.items():
             nd = norm_doi(rec_id) or rec_id
