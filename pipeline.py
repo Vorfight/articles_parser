@@ -220,7 +220,7 @@ def run_pipeline(
                 full_text = normalize_spaces(full_text.strip())
                 if full_text:
                     if fulltext_res:
-                        filter_pass = all(bool(p.search(full_text)) for p in fulltext_res)
+                        filter_pass = any(bool(p.search(full_text)) for p in fulltext_res)
                     else:
                         filter_pass = True
                     if save_text:
