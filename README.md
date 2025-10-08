@@ -1,13 +1,13 @@
 # Articles Parser
 
-Articles Parser automates the collection and processing of scientific publications. It can search various sources, filter results, download full texts, extract their contents, and save the data for further analysis. The parser is flexible and can gather information on any chemical or physical properties.
+Articles Parser automates the collection and processing of scientific publications. It can search various sources, filter results, download full texts, extract their contents, and save the data for further analysis.
 
 ## Workflow
 
-1. Search articles: the parser queries selected scientific databases using user-specified parameters.
-2. Initial filtering: titles and abstracts are filtered with regular expressions.
+1. Search articles: the parser queries selected scientific databases using user-specified keywords.
+2. Initial filtering: titles and abstracts are filtered with user-provided regular expressions.
 3. Download: full texts are downloaded.
-4. Text extraction: text is extracted from the downloaded files.
+4. Text extraction: text and tables is extracted from the downloaded files.
 5. Secondary filtering: full text is filtered with user-provided regular expressions.
 
 ## Usage
@@ -27,35 +27,31 @@ pip install -r requirements.txt
 
 3. Run the parser:
 
-```bash
-python cli.py --keywords "oil viscosity" "petrol viscosity" \
-    --abstract-filter --abstract-regex temperature \
-    --fulltext-filter --fulltext-regex "kinematic viscosity" "dynamic viscosity" \
-    --oa-only --max-per-source 50 --output-dir ./output \
-    --save-text \
-    --sources OpenAlex Sciencedirect
-```
-
-Add `--no-verbose` to hide detailed per-article output and only keep the search progress bars.
-Use `--no-save-text` to skip storing extracted `.txt` files alongside downloaded articles.
-
-Parameters can be combined as needed. The package can also be used as a library:
-
 ```python
 from pipeline import run_pipeline
 
 run_pipeline(
-    keywords=["oil viscosity", "petrol viscosity"],
+    keywords=["radiolysis", "radiolytic stability",  "dose constant", "radiation chemical yield"],
     abstract_filter=True,
-    abstract_regex=["temperature"],
+    abstract_regex = [
+        r"(?i)radiolysis",
+        r"(?i)gamma|γ",
+        r"(?i)beta|β|electron",
+        r"(?i)degradation",
+        ],
     fulltext_filter=True,
-    fulltext_regex=["kinematic viscosity", "dynamic viscosity"],
-    oa_only=True,
-    max_per_source=50,
+    fulltext_regex = [
+        r'(?i)(?:molecules?|mols?|mol)\s*(?:/|per)\s*100\s*eV',
+        r'(?i)(?:μ|µ|u|m|)?mol\s*/\s*J',
+        r'(?i)k?(?:Gy|rad)\^?(?:[-\u2212\u2010\u2011\u2012\u2013\u2014\u2015])',
+        r'(?i)(?<!\w)G(?:[-\u2212\u2010\u2011\u2012\u2013\u2014\u2015]|\s+)values?',
+        r'(?i)(?<!\w)G\s*\([^)]*\)',
+        ],
+    oa_only=False,
+    max_per_source=100000,
     output_directory="./output",
-    sources=["OpenAlex", "Sciencedirect"],
-    verbose=True,
-    save_text=True,
+    sources=["OpenAlex", "ScienceDirect", "arXiv", "EuropePMC"],
+    verbose=False
 )
 ```
 
@@ -67,7 +63,7 @@ from pipeline import run_local
 run_local(
     pdf_path="/path/to/article.pdf",
     fulltext_filter=True,
-    fulltext_regex=["kinematic viscosity", "mm^2/s"],
+    fulltext_regex=[r"(?i)kinematic viscosity", r"(?i)m{2}\s*(?:\^?2|²)\s*(?:/\s*s|\s*s\s*(?:\^?-?1|⁻1|⁻¹))"],
     inventory=False,
     save_text=True,
 )
