@@ -68,7 +68,3 @@ run_local(
     save_text=True,
 )
 ```
-
-## Examples
-
-See [`examples/test.ipynb`](examples/test.ipynb) for a sample notebook demonstrating both Python API and CLI usage.
