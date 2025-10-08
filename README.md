@@ -15,7 +15,7 @@ Articles Parser automates the collection and processing of scientific publicatio
 1. Create and activate a conda environment:
 
 ```bash
-conda create -n articles_parser_env python=3.8 -y
+conda create -n articles_parser_env python=3.11 -y
 conda activate articles_parser_env
 ```
 
@@ -28,6 +28,9 @@ pip install -r requirements.txt
 3. Run the parser:
 
 ```python
+import sys
+sys.path.insert(0, '/path/to/articles_parser')
+
 from pipeline import run_pipeline
 
 run_pipeline(
@@ -58,6 +61,9 @@ run_pipeline(
 To validate a locally stored PDF without running the full search pipeline:
 
 ```python
+import sys
+sys.path.insert(0, '/path/to/articles_parser')
+
 from pipeline import run_local
 
 run_local(
