@@ -125,7 +125,7 @@ def run_pipeline(
 
             title = (rec.get("title") or "").replace("\n", " ").replace("\r", " ")
             abstr = rec.get("abstract") or ""
-            abstract_available = bool(title) and bool(abstr)
+            abstract_available = bool(abstr)
 
             notes: list[str] = []
             fulltext_matched = None
@@ -137,27 +137,29 @@ def run_pipeline(
                 f"  Source: {rec.get('source', '') or 'unknown'}",
             ]
 
-            abstract_matched = True
+            abstract_matched: bool | None = True
             abstract_status = None
             if abstract_filter:
                 combined_text = f"{title}\n{abstr}" if abstract_available else ""
-                if abstract_available and any(p.search(combined_text) for p in abstract_res):
-                    abstract_status = "patterns in abstract"
+                if abstract_available:
+                    if any(p.search(combined_text) for p in abstract_res):
+                        abstract_status = "patterns in abstract"
+                        abstract_matched = True
+                    else:
+                        abstract_matched = False
+                        abstract_status = "patterns not in abstract"
+                        notes.append("skip:abstract_filter")
                 else:
-                    abstract_matched = False
-                    abstract_status = (
-                        "patterns not in abstract"
-                        if abstract_available
-                        else "patterns not in abstract (abstract unavailable)"
-                    )
-                    notes.append("skip:abstract_filter")
+                    abstract_matched = None
+                    abstract_status = "abstract not found"
+                    notes.append("abstract_not_found")
                 report_lines.append(f"  Abstract filter: {abstract_status}")
 
             direct_status: str | None = None
             libgen_status: str | None = None
             fulltext_message: str | None = None
 
-            if abstract_filter and not abstract_matched:
+            if abstract_filter and abstract_matched is False:
                 direct_status = (
                     "not attempted (abstract filter not matched)"
                     if rec.get("pdf_url")
