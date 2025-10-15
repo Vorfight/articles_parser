@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+import csv
 import re
 import config
-from utils import ensure_dirs, norm_doi, doi_to_fname, normalize_spaces
+from utils import (
+    ensure_dirs,
+    norm_doi,
+    doi_to_fname,
+    normalize_spaces,
+    is_valid_pdf,
+    delete_if_exists,
+)
 from search import (
     search_openalex,
     search_europe_pmc,
@@ -11,7 +19,12 @@ from search import (
     search_sciencedirect,
     search_crossref,
 )
-from download import try_download_pdf_with_validation, try_download_xml
+from download import (
+    try_download_pdf_with_validation,
+    try_download_xml,
+    download_via_libgen_stub,
+    append_line,
+)
 from extract import extract_text_from_pdf, extract_text_from_xml, extract_tables_text
 from inventory import load_seen_inventory, ensure_inventory_file, append_inventory_row
 import logging
@@ -282,6 +295,101 @@ def run_pipeline(
                 print(flush=True)
     if verbose:
         print(f"Done. Summary in {config.LOG_INVENTORY}", flush=True)
+
+
+def try_failed(
+    inventory_path: str | Path,
+    *,
+    fulltext_filter: bool = False,
+    fulltext_regex: list[str] | None = None,
+    libgen_domain: str | None = "bz",
+) -> None:
+    """Retry LibGen downloads for inventory rows marked as ``download_failed``."""
+
+    path = Path(inventory_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Inventory file not found: {path}")
+
+    output_dir = path.parent
+    config.set_output_dir(output_dir)
+    ensure_dirs()
+
+    domain = libgen_domain or "bz"
+    fulltext_res = [re.compile(p) for p in (fulltext_regex or [])] if fulltext_filter else []
+
+    with path.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames
+        if not fieldnames:
+            return
+
+        rows: list[dict[str, str]] = []
+        for row in reader:
+            notes_raw = row.get("notes", "") or ""
+            notes = [n.strip() for n in notes_raw.split(",") if n.strip()]
+            if "download_failed" not in notes:
+                rows.append(row)
+                continue
+
+            doi = row.get("doi")
+            if not doi:
+                rows.append(row)
+                continue
+
+            pdf_path = config.PDF_DIR / f"{doi_to_fname(doi)}.pdf"
+            pdf_path.parent.mkdir(parents=True, exist_ok=True)
+
+            success, _ = download_via_libgen_stub(str(doi), pdf_path, domain)
+            if not success or not is_valid_pdf(pdf_path):
+                delete_if_exists(pdf_path)
+                rows.append(row)
+                continue
+
+            keep_pdf = True
+            status_note = "downloaded after retry"
+
+            if fulltext_filter:
+                full_text = extract_text_from_pdf(pdf_path)
+                tables_text = extract_tables_text(pdf_path)
+                if tables_text:
+                    full_text = f"{full_text}\n\n{tables_text}" if full_text else tables_text
+                full_text = normalize_spaces(full_text.strip())
+
+                if full_text:
+                    if fulltext_res:
+                        filter_pass = any(bool(p.search(full_text)) for p in fulltext_res)
+                    else:
+                        filter_pass = True
+                else:
+                    filter_pass = False
+
+                if filter_pass:
+                    row["fulltext_matched"] = "True"
+                else:
+                    row["fulltext_matched"] = "False"
+                    status_note = "skip:fulltext_filter"
+                    keep_pdf = False
+
+            if keep_pdf:
+                append_line(config.LOG_PDF_DOI, str(doi))
+                row["pdf_downloaded"] = "True"
+            else:
+                delete_if_exists(pdf_path)
+                row["pdf_downloaded"] = "False"
+
+            notes = [n for n in notes if n != "download_failed"]
+            if status_note == "downloaded after retry":
+                notes = [n for n in notes if n != "skip:fulltext_filter"]
+            if status_note and status_note not in notes:
+                notes.append(status_note)
+            row["notes"] = ",".join(notes)
+
+            rows.append(row)
+
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 def run_local(
