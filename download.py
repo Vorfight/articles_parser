@@ -8,6 +8,37 @@ import time
 import config
 from utils import is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
 
+_LIBGEN_MIN_DELAY_SECONDS = 3.1
+_LIBGEN_RATE_LIMIT_BACKOFF = 2.0
+_LIBGEN_MAX_ATTEMPTS = 5
+_LIBGEN_RATE_LIMIT_MAX_DELAY = 60.0
+
+_libgen_last_attempt_completed_at: float | None = None
+
+
+def _wait_for_libgen_window(delay: float) -> None:
+    """Ensure at least ``delay`` seconds have elapsed since the last LibGen attempt."""
+
+    global _libgen_last_attempt_completed_at
+
+    if _libgen_last_attempt_completed_at is None:
+        return
+
+    elapsed = time.monotonic() - _libgen_last_attempt_completed_at
+    if elapsed < delay:
+        time.sleep(delay - elapsed)
+
+
+def _is_libgen_rate_limit_message(message: str | None) -> bool:
+    if not message:
+        return False
+    return "you have downloaded too much files" in message.lower()
+
+
+def _next_rate_limit_delay(previous_delay: float) -> float:
+    next_delay = max(previous_delay * _LIBGEN_RATE_LIMIT_BACKOFF, previous_delay + _LIBGEN_MIN_DELAY_SECONDS)
+    return min(next_delay, _LIBGEN_RATE_LIMIT_MAX_DELAY)
+
 
 @dataclass
 class AttemptOutcome:
@@ -60,6 +91,14 @@ def _request_with_error(url: str, *, stream: bool, headers: dict[str, str] | Non
         status = e.response.status_code if e.response is not None else "unknown"
         reason = e.response.reason if e.response is not None else ""
         message = f"HTTP {status}{f' {reason}' if reason else ''}".strip()
+        if e.response is not None:
+            try:
+                body_text = (e.response.text or "").strip()
+            except Exception:
+                body_text = ""
+            if body_text:
+                first_line = body_text.splitlines()[0]
+                message = f"{message}: {first_line}"
         return None, message
     except Exception as e:
         return None, str(e)
@@ -100,47 +139,89 @@ def find_md5(data: dict):
 def download_via_libgen_stub(
     doi: str, pdf_path: Path, libgen_domain: str
 ) -> tuple[bool, str | None]:
-    try:
-        md5_req = requests.get(
-            f"https://libgen.{libgen_domain}/json.php?object=e&doi={doi}&fields=md5",
-            timeout=config.REQUESTS_TIMEOUT,
-        )
-        md5_req.raise_for_status()
-        md5 = find_md5(md5_req.json())
-        if not md5:
-            return False, "LibGen lookup did not return md5"
-        mirror_url = f"http://libgen.{libgen_domain}/ads.php?md5={md5}&downloadname={doi}"
+    global _libgen_last_attempt_completed_at
 
-        resp = requests.get(
-            mirror_url,
-            timeout=config.REQUESTS_TIMEOUT,
-            allow_redirects=True,
-        )
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+    delay = _LIBGEN_MIN_DELAY_SECONDS
+    last_error: str | None = None
 
-        links = soup.find_all("a", string=lambda s: s and s.strip().upper() == "GET")
-        if not links:
-            return False, "No GET links found on the mirror page"
+    for _ in range(_LIBGEN_MAX_ATTEMPTS):
+        _wait_for_libgen_window(delay)
+        try:
+            response, error = _request_with_error(
+                f"https://libgen.{libgen_domain}/json.php?object=e&doi={doi}&fields=md5",
+                stream=False,
+            )
+            if not response:
+                if _is_libgen_rate_limit_message(error):
+                    last_error = error
+                    delay = _next_rate_limit_delay(delay)
+                    continue
+                return False, error or "LibGen lookup failed"
 
-        resolved_download_link = None
-        for link in links:
-            href = link.get("href")
-            if not href:
+            try:
+                try:
+                    lookup_data = response.json()
+                except Exception as json_error:
+                    return False, f"Failed to parse LibGen lookup response: {json_error}"
+                md5 = find_md5(lookup_data)
+            finally:
+                response.close()
+
+            if not md5:
+                return False, "LibGen lookup did not return md5"
+
+            mirror_url = f"http://libgen.{libgen_domain}/ads.php?md5={md5}&downloadname={doi}"
+
+            response, error = _request_with_error(
+                mirror_url,
+                stream=False,
+            )
+            if not response:
+                if _is_libgen_rate_limit_message(error):
+                    last_error = error
+                    delay = _next_rate_limit_delay(delay)
+                    continue
+                return False, error or "LibGen mirror request failed"
+
+            try:
+                soup = BeautifulSoup(response.text, "html.parser")
+            finally:
+                response.close()
+
+            links = soup.find_all("a", string=lambda s: s and s.strip().upper() == "GET")
+            if not links:
+                return False, "No GET links found on the mirror page"
+
+            resolved_download_link = None
+            for link in links:
+                href = link.get("href")
+                if not href:
+                    continue
+                full_url = urljoin(mirror_url, href)
+                params = parse_qs(urlparse(full_url).query)
+                key_vals = params.get("key")
+                if key_vals and key_vals[0]:
+                    key = key_vals[0]
+                    cdn_base = "https://cdn4.booksdl.lc/get.php"
+                    resolved_download_link = f"{cdn_base}?md5={md5}&key={key}"
+                    break
+            if not resolved_download_link:
+                return False, "Could not extract 'key' parameter from any GET link"
+
+            success, download_error = download_file(resolved_download_link, pdf_path)
+            if success:
+                return True, download_error
+
+            if _is_libgen_rate_limit_message(download_error):
+                last_error = download_error
+                delay = _next_rate_limit_delay(delay)
                 continue
-            full_url = urljoin(mirror_url, href)
-            params = parse_qs(urlparse(full_url).query)
-            key_vals = params.get("key")
-            if key_vals and key_vals[0]:
-                key = key_vals[0]
-                cdn_base = "https://cdn4.booksdl.lc/get.php"
-                resolved_download_link = f"{cdn_base}?md5={md5}&key={key}"
-                break
-        if not resolved_download_link:
-            return False, "Could not extract 'key' parameter from any GET link"
-        return download_file(resolved_download_link, pdf_path)
-    except Exception as e:
-        return False, str(e)
+
+            return False, download_error or "libgen download failed"
+        finally:
+            _libgen_last_attempt_completed_at = time.monotonic()
+
+    return False, last_error or "libgen download failed"
 
 def try_download_pdf_with_validation(
     doi: str,
