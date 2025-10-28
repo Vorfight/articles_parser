@@ -310,6 +310,25 @@ def try_failed(
     if not path.exists():
         raise FileNotFoundError(f"Inventory file not found: {path}")
 
+    print(
+        "\n".join(
+            [
+                "=== Retry failed downloads ===",
+                f"Inventory file: {path}",
+                f"Output directory: {path.parent}",
+                f"LibGen domain: {libgen_domain or 'bz'}",
+                f"Fulltext filter: {'enabled' if fulltext_filter else 'disabled'}",
+                (
+                    "Fulltext regex patterns: "
+                    + ", ".join(fulltext_regex or [])
+                    if fulltext_filter and fulltext_regex
+                    else "Fulltext regex patterns: none"
+                ),
+            ]
+        ),
+        flush=True,
+    )
+
     output_dir = path.parent
     config.set_output_dir(output_dir)
     ensure_dirs()
@@ -324,29 +343,57 @@ def try_failed(
             return
 
         rows: list[dict[str, str]] = []
-        for row in reader:
+        for index, row in enumerate(reader, start=1):
+            doi = row.get("doi")
+            title = (row.get("title") or "").replace("\n", " ").strip()
+            label = doi or title or f"row #{index}"
+            print(
+                f"[{index}] Processing entry: {label}",
+                flush=True,
+            )
+
             notes_raw = row.get("notes", "") or ""
             notes = [n.strip() for n in notes_raw.split(",") if n.strip()]
             if "download_failed" not in notes:
+                print(
+                    f"[{index}] Skipping (no 'download_failed' note present).",
+                    flush=True,
+                )
                 rows.append(row)
                 continue
 
-            doi = row.get("doi")
             if not doi:
+                print(
+                    f"[{index}] Skipping (missing DOI for failed download entry).",
+                    flush=True,
+                )
                 rows.append(row)
                 continue
 
             pdf_path = config.PDF_DIR / f"{doi_to_fname(doi)}.pdf"
             pdf_path.parent.mkdir(parents=True, exist_ok=True)
 
+            print(
+                f"[{index}] Attempting LibGen download to {pdf_path}...",
+                flush=True,
+            )
             success, _ = download_via_libgen_stub(str(doi), pdf_path, domain)
             if not success or not is_valid_pdf(pdf_path):
                 delete_if_exists(pdf_path)
+                print(
+                    f"[{index}] Download failed or produced invalid PDF.",
+                    flush=True,
+                )
                 rows.append(row)
                 continue
 
             keep_pdf = True
             status_note = "downloaded after retry"
+
+            print(
+                f"[{index}] Download succeeded. Validating fulltext filter...",
+                flush=True,
+            )
 
             if fulltext_filter:
                 full_text = extract_text_from_pdf(pdf_path)
@@ -360,22 +407,46 @@ def try_failed(
                         filter_pass = any(bool(p.search(full_text)) for p in fulltext_res)
                     else:
                         filter_pass = True
+                    print(
+                        f"[{index}] Fulltext extracted ({len(full_text)} chars).",
+                        flush=True,
+                    )
                 else:
                     filter_pass = False
+                    print(
+                        f"[{index}] Fulltext not available for filtering.",
+                        flush=True,
+                    )
 
                 if filter_pass:
                     row["fulltext_matched"] = "True"
+                    print(
+                        f"[{index}] Fulltext filter result: PASSED.",
+                        flush=True,
+                    )
                 else:
                     row["fulltext_matched"] = "False"
                     status_note = "skip:fulltext_filter"
                     keep_pdf = False
+                    print(
+                        f"[{index}] Fulltext filter result: FAILED (PDF will be removed).",
+                        flush=True,
+                    )
 
             if keep_pdf:
                 append_line(config.LOG_PDF_DOI, str(doi))
                 row["pdf_downloaded"] = "True"
+                print(
+                    f"[{index}] PDF retained and marked as downloaded.",
+                    flush=True,
+                )
             else:
                 delete_if_exists(pdf_path)
                 row["pdf_downloaded"] = "False"
+                print(
+                    f"[{index}] PDF removed and marked as not downloaded.",
+                    flush=True,
+                )
 
             notes = [n for n in notes if n != "download_failed"]
             if status_note == "downloaded after retry":
@@ -384,12 +455,24 @@ def try_failed(
                 notes.append(status_note)
             row["notes"] = ",".join(notes)
 
+            print(
+                f"[{index}] Updated notes: {row['notes'] or '—'}",
+                flush=True,
+            )
+
             rows.append(row)
+
+        print(
+            f"Processed {len(rows)} inventory entries. Writing updates...",
+            flush=True,
+        )
 
     with path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+    print("Retry process completed. Inventory file updated.", flush=True)
 
 
 def run_local(
