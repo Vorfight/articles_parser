@@ -8,7 +8,7 @@ import time
 import config
 from utils import is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
 
-_LIBGEN_MIN_DELAY_SECONDS = 3.1
+_LIBGEN_MIN_DELAY_SECONDS = 4
 _LIBGEN_RATE_LIMIT_BACKOFF = 2.0
 _LIBGEN_MAX_ATTEMPTS = 5
 _LIBGEN_RATE_LIMIT_MAX_DELAY = 60.0
