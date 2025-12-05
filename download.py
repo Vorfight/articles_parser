@@ -6,6 +6,7 @@ import requests
 import time
 
 import config
+from scidownl import scihub_download
 from utils import is_valid_pdf, delete_if_exists, doi_to_fname, norm_doi
 
 _LIBGEN_MIN_DELAY_SECONDS = 4
@@ -51,6 +52,7 @@ class AttemptOutcome:
 class PDFDownloadResult:
     success: bool = False
     direct: AttemptOutcome = field(default_factory=AttemptOutcome)
+    scihub: AttemptOutcome = field(default_factory=AttemptOutcome)
     libgen: AttemptOutcome = field(default_factory=AttemptOutcome)
 
 
@@ -223,6 +225,18 @@ def download_via_libgen_stub(
 
     return False, last_error or "libgen download failed"
 
+
+def download_via_scihub(doi: str, pdf_path: Path) -> tuple[bool, str | None]:
+    try:
+        scihub_download(keyword=doi, paper_type="doi", out=str(pdf_path))
+    except Exception as e:
+        return False, str(e)
+
+    if not pdf_path.exists():
+        return False, "sci-hub download did not produce a file"
+
+    return True, None
+
 def try_download_pdf_with_validation(
     doi: str,
     title: str,
@@ -248,19 +262,39 @@ def try_download_pdf_with_validation(
                 result.success = True
                 result.direct.success = True
                 result.direct.message = "downloaded from direct link"
+                result.scihub.message = "sci-hub download not attempted (direct download succeeded)"
                 result.libgen.message = "libgen download not attempted (direct download succeeded)"
                 return result
             delete_if_exists(pdf_path)
             result.direct.message = "is_valid_pdf returned False"
         else:
             delete_if_exists(pdf_path)
-            result.direct.message = direct_error or "direct download failed"
+        result.direct.message = direct_error or "direct download failed"
     else:
         result.direct.message = "no direct link provided"
 
     if oa_only:
+        result.scihub.message = "sci-hub download skipped (oa_only=True)"
         result.libgen.message = "libgen download skipped (oa_only=True)"
     else:
+        result.scihub.attempted = True
+        scihub_ok, scihub_error = download_via_scihub(doi, pdf_path)
+        if scihub_ok:
+            if is_valid_pdf(pdf_path):
+                append_line(config.LOG_PDF_DOI, doi)
+                result.success = True
+                result.scihub.success = True
+                result.scihub.message = "downloaded from sci-hub"
+                result.libgen.message = "libgen download not attempted (sci-hub download succeeded)"
+                if result.direct.message is None:
+                    result.direct.message = "direct download not attempted"
+                return result
+            delete_if_exists(pdf_path)
+            result.scihub.message = "is_valid_pdf returned False"
+        else:
+            delete_if_exists(pdf_path)
+            result.scihub.message = scihub_error or "sci-hub download failed"
+
         result.libgen.attempted = True
         libgen_ok, libgen_error = download_via_libgen_stub(doi, pdf_path, libgen_domain)
         if libgen_ok:
@@ -271,6 +305,8 @@ def try_download_pdf_with_validation(
                 result.libgen.message = "downloaded from libgen"
                 if result.direct.message is None:
                     result.direct.message = "direct download not attempted"
+                if result.scihub.message is None:
+                    result.scihub.message = "sci-hub download not attempted"
                 return result
             delete_if_exists(pdf_path)
             result.libgen.message = "is_valid_pdf returned False"
@@ -281,6 +317,8 @@ def try_download_pdf_with_validation(
     append_line(config.LOG_DOI_NOT_DOWNL, doi)
     if result.direct.message is None:
         result.direct.message = "direct download not attempted"
+    if result.scihub.message is None:
+        result.scihub.message = "sci-hub download failed"
     if result.libgen.message is None:
         result.libgen.message = "libgen download failed"
     return result

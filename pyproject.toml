@@ -16,6 +16,7 @@ dependencies = [
   "beautifulsoup4>=4.12",
   "lxml>=4.9",
   "libgen-api-enhanced>=1.2",
+  "scidownl>=1.0.2",
   "pandas>=2.0"
 ]
 
